@@ -3,7 +3,8 @@ package database
 type ObjectType int
 
 const (
-	TypeString ObjectType = iota
+	TypeNone ObjectType = iota
+	TypeString
 )
 
 func (t ObjectType) String() string {

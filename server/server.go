@@ -14,23 +14,26 @@ import (
 )
 
 const (
-	ServerDatabaseNum = 16
+	DefaultServerDatabases = 16
 )
 
 type Server struct {
+	databaseNum int
 	listener    net.Listener
-	databases   [ServerDatabaseNum]*database.Database
+	databases   []*database.Database
 	connections map[uint64]*client.Client
 	counter     atomic.Uint64
-	requests    [ServerDatabaseNum]chan *client.Client
+	requests    []chan *client.Client
 }
 
 func NewServer() *Server {
 	s := new(Server)
+	s.databaseNum = DefaultServerDatabases
 
-	s.databases = [ServerDatabaseNum]*database.Database{}
+	s.databases = make([]*database.Database, s.databaseNum)
+	s.requests = make([]chan *client.Client, s.databaseNum)
 	s.connections = make(map[uint64]*client.Client)
-	for i := 0; i < ServerDatabaseNum; i++ {
+	for i := 0; i < DefaultServerDatabases; i++ {
 		s.databases[i] = database.NewDatabase()
 		s.requests[i] = make(chan *client.Client)
 	}
@@ -46,7 +49,7 @@ func (s *Server) Listen() error {
 
 	log.Printf("AntDB listening on 0.0.0.0:6379")
 
-	for i := 0; i < ServerDatabaseNum; i++ {
+	for i := 0; i < s.databaseNum; i++ {
 		go s.loop(i)
 	}
 
@@ -71,6 +74,11 @@ func (s *Server) loop(dbIndex int) {
 }
 
 func (s *Server) handleConnection(cli *client.Client) {
+	defer func() {
+		delete(s.connections, cli.ID)
+		cli.Conn.Close()
+	}()
+
 	for {
 		err := cli.ReadCommand()
 		if errors.Is(err, io.EOF) {
@@ -80,10 +88,18 @@ func (s *Server) handleConnection(cli *client.Client) {
 			continue
 		}
 
+		log.Printf("Client %d: %v", cli.ID, cli.LastCommand)
+
+		if len(cli.LastCommand) > 0 {
+			switch strings.ToUpper(cli.LastCommand[0]) {
+			case "QUIT":
+				cli.ReplySimpleString("OK")
+				return
+			}
+		}
+
 		s.requests[cli.DB] <- cli
 	}
-
-	delete(s.connections, cli.ID)
 }
 
 func (s *Server) handleCommand(cli *client.Client) {
@@ -98,8 +114,10 @@ func (s *Server) handleCommand(cli *client.Client) {
 		return
 	}
 
-	if (cmd.Args >= 0 && cmd.Args != len(parts)-1) || (cmd.Args < 0 && len(parts)-1 < -cmd.Args) {
-		cli.ReplyError(fmt.Sprintf("ERR wrong number of arguments for '%s'", parts[0]))
+	if (cmd.Args > 0 && cmd.Args != len(parts)-1) ||
+		(cmd.Args <= 0 && len(parts)-1 < -cmd.Args) ||
+		(cmd.MaxArgs > 0 && len(parts)-1 > cmd.MaxArgs) {
+		cli.ReplyError(fmt.Sprintf("ERR wrong number of arguments for '%s' command", parts[0]))
 		return
 	}
 

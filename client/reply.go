@@ -15,8 +15,8 @@ func (cli *Client) ReplyError(err string) (int, error) {
 	return cli.rely(data)
 }
 
-func (cli *Client) ReplyInteger(i int) (int, error) {
-	data := []byte(":" + strconv.Itoa(i) + "\r\n")
+func (cli *Client) ReplyInteger(i int64) (int, error) {
+	data := []byte(":" + strconv.FormatInt(i, 10) + "\r\n")
 	return cli.rely(data)
 }
 
