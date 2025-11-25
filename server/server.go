@@ -14,11 +14,15 @@ import (
 )
 
 const (
-	DefaultServerDatabases = 16
+	defaultServerHost      = "127.0.0.1"
+	defaultServerPort      = 6379
+	defaultServerDatabases = 16
 )
 
 type Server struct {
 	databaseNum int
+	host        string
+	port        int
 	listener    net.Listener
 	databases   []*database.Database
 	connections map[uint64]*client.Client
@@ -26,28 +30,55 @@ type Server struct {
 	requests    []chan *client.Client
 }
 
-func NewServer() *Server {
-	s := new(Server)
-	s.databaseNum = DefaultServerDatabases
+func NewServer(options ...ServerOption) *Server {
+	s := newDefaultServer()
+	builder := new(serverBuilder)
+
+	for _, option := range options {
+		option(builder)
+	}
+
+	if builder.databaseNum > 0 {
+		s.databaseNum = builder.databaseNum
+	}
+	if builder.host != "" {
+		s.host = builder.host
+	}
+	if builder.port > 0 {
+		s.port = builder.port
+	}
 
 	s.databases = make([]*database.Database, s.databaseNum)
 	s.requests = make([]chan *client.Client, s.databaseNum)
 	s.connections = make(map[uint64]*client.Client)
-	for i := 0; i < DefaultServerDatabases; i++ {
+	for i := 0; i < s.databaseNum; i++ {
 		s.databases[i] = database.NewDatabase()
 		s.requests[i] = make(chan *client.Client)
 	}
+
+	return s
+}
+
+func newDefaultServer() *Server {
+	s := new(Server)
+
+	s.host = defaultServerHost
+	s.port = defaultServerPort
+	s.databaseNum = defaultServerDatabases
+
 	return s
 }
 
 func (s *Server) Listen() error {
-	listener, err := net.Listen("tcp", "0.0.0.0:6379")
+	address := fmt.Sprintf("%s:%d", s.host, s.port)
+
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
 	s.listener = listener
 
-	log.Printf("AntDB listening on 0.0.0.0:6379")
+	log.Printf("AntDB listening on %s", address)
 
 	for i := 0; i < s.databaseNum; i++ {
 		go s.loop(i)
@@ -114,9 +145,8 @@ func (s *Server) handleCommand(cli *client.Client) {
 		return
 	}
 
-	if (cmd.Args > 0 && cmd.Args != len(parts)-1) ||
-		(cmd.Args <= 0 && len(parts)-1 < -cmd.Args) ||
-		(cmd.MaxArgs > 0 && len(parts)-1 > cmd.MaxArgs) {
+	if (cmd.Arity > 0 && cmd.Arity != len(parts)-1) ||
+		(cmd.Arity <= 0 && len(parts)-1 < -cmd.Arity) {
 		cli.ReplyError(fmt.Sprintf("ERR wrong number of arguments for '%s' command", parts[0]))
 		return
 	}
@@ -124,5 +154,9 @@ func (s *Server) handleCommand(cli *client.Client) {
 	err := cmd.Handler(s, cli, parts[1:]...)
 	if err != nil {
 		cli.ReplyError(err.Error())
+	}
+
+	if cmd.Flags&CommandFlagWrite != 0 {
+		// Handle AOF
 	}
 }

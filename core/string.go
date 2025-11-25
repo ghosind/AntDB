@@ -28,6 +28,7 @@ func (db *Database) Set(key string, value string, flag SetFlag, expires int64) (
 		db.data[key] = obj
 	}
 	obj.Value = value
+	obj.Type = TypeString
 	obj.Expires = expires
 
 	return true, nil

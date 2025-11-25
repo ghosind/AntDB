@@ -77,13 +77,6 @@ func (s *Server) setnxCommand(cli *client.Client, args ...string) error {
 	return s.genericSetCommand(cli, key, value, database.SetFlagNX, 9)
 }
 
-func (s *Server) setxxCommand(cli *client.Client, args ...string) error {
-	key := args[0]
-	value := args[1]
-
-	return s.genericSetCommand(cli, key, value, database.SetFlagXX, 0)
-}
-
 func (s *Server) genericSetCommand(cli *client.Client, key, value string, flag database.SetFlag, expires int64) error {
 	db := s.databases[cli.DB]
 
