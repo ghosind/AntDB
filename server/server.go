@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/ghosind/antdb/client"
 	database "github.com/ghosind/antdb/core"
@@ -17,6 +19,9 @@ const (
 	defaultServerHost      = "127.0.0.1"
 	defaultServerPort      = 6379
 	defaultServerDatabases = 16
+
+	defaultServerHz                  = 10
+	defaultServerActiveExpireSamples = 20
 )
 
 type Server struct {
@@ -28,6 +33,9 @@ type Server struct {
 	connections map[uint64]*client.Client
 	counter     atomic.Uint64
 	requests    []chan *client.Client
+
+	hz                  int
+	activeExpireSamples int
 }
 
 func NewServer(options ...ServerOption) *Server {
@@ -55,6 +63,11 @@ func NewServer(options ...ServerOption) *Server {
 		s.databases[i] = database.NewDatabase()
 		s.requests[i] = make(chan *client.Client)
 	}
+
+	s.hz = s.withIntOption(builder.hz, defaultServerHz)
+	s.activeExpireSamples = s.withIntOption(builder.activeExpireSamples, defaultServerActiveExpireSamples)
+
+	go s.serverCron()
 
 	return s
 }
@@ -159,4 +172,39 @@ func (s *Server) handleCommand(cli *client.Client) {
 	if cmd.Flags&CommandFlagWrite != 0 {
 		// Handle AOF
 	}
+}
+
+func (s *Server) serverCron() {
+	duration := 1000 / s.hz
+	ticker := time.NewTicker(time.Duration(duration) * time.Millisecond)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		timeout := int(float64(duration) * 0.25)
+		ctx, canFunc := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
+
+	dbLoop:
+		for _, db := range s.databases {
+			select {
+			case <-ctx.Done():
+				break dbLoop
+			default:
+			again:
+				cnt := db.CheckExpire(ctx, s.activeExpireSamples)
+				ratio := float64(cnt) / float64(s.activeExpireSamples)
+				if ratio > 0.25 {
+					goto again
+				}
+			}
+		}
+
+		canFunc()
+	}
+}
+
+func (s *Server) withIntOption(val int, defaultVal int) int {
+	if val > 0 {
+		return val
+	}
+	return defaultVal
 }

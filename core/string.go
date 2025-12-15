@@ -30,6 +30,9 @@ func (db *Database) Set(key string, value string, flag SetFlag, expires int64) (
 	obj.Value = value
 	obj.Type = TypeString
 	obj.Expires = expires
+	if expires > 0 {
+		db.expires[key] = expires
+	}
 
 	return true, nil
 }

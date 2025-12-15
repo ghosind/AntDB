@@ -1,11 +1,13 @@
 package database
 
+import "time"
+
 func (db *Database) Del(keys ...string) int {
 	cnt := 0
 	for _, key := range keys {
 		obj, _ := db.lookupKey(key, TypeNone, true)
 		if obj != nil {
-			db.releaseObject(key, obj)
+			db.removeKey(key, obj)
 			cnt++
 		}
 	}
@@ -29,7 +31,13 @@ func (db *Database) Expire(key string, expire int64) bool {
 	if err != nil || obj == nil {
 		return false
 	}
+	if expire < time.Now().UnixMilli() {
+		db.removeKey(key, obj)
+		return true
+	}
 	obj.Expires = expire
+	db.expires[key] = expire
+
 	return true
 }
 
@@ -46,6 +54,10 @@ func (db *Database) Move(key string, dest *Database) bool {
 
 	delete(db.data, key)
 	dest.data[key] = obj
+	if obj.Expires != 0 {
+		delete(db.expires, key)
+		dest.expires[key] = obj.Expires
+	}
 	return true
 }
 
@@ -64,6 +76,10 @@ func (db *Database) Rename(key, newKey string, nx bool) (bool, error) {
 
 	db.data[newKey] = obj
 	delete(db.data, key)
+	if obj.Expires != 0 {
+		db.expires[newKey] = obj.Expires
+		delete(db.expires, key)
+	}
 	return true, nil
 }
 

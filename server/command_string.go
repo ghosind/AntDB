@@ -34,8 +34,8 @@ func (s *Server) setCommand(cli *client.Client, args ...string) (err error) {
 	expires := int64(0)
 	skip := false
 
-	for i, v := range args[2:] {
-		if skip {
+	for i, v := range args {
+		if skip || i < 2 {
 			skip = false
 			continue
 		}
@@ -46,20 +46,20 @@ func (s *Server) setCommand(cli *client.Client, args ...string) (err error) {
 		case "XX":
 			flag |= database.SetFlagXX
 		case "EX":
-			if i+3 < len(args) {
+			if i+1 >= len(args) {
 				return ErrSyntax
 			}
-			expires, err = strconv.ParseInt(args[i+3], 10, 64)
+			expires, err = strconv.ParseInt(args[i+1], 10, 64)
 			if err != nil {
 				return err
 			}
 			expires = expires*1000 + time.Now().UnixMilli()
 			skip = true
 		case "PX":
-			if i+3 < len(args) {
+			if i+1 >= len(args) {
 				return ErrSyntax
 			}
-			expires, err = strconv.ParseInt(args[i+3], 10, 64)
+			expires, err = strconv.ParseInt(args[i+1], 10, 64)
 			if err != nil {
 				return err
 			}
