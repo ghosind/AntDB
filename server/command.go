@@ -15,13 +15,15 @@ type DBCommand struct {
 	Handler func(*Server, *client.Client, ...string) error
 	Arity   int
 	Flags   CommandFlags
+	NoWait  bool
 }
 
 var dbCommands map[string]DBCommand = map[string]DBCommand{
 	// Connection Management
-	"ECHO":   {Handler: (*Server).echoCommand, Arity: 1, Flags: CommandFlagRead},
-	"PING":   {Handler: (*Server).pingCommand, Arity: 0, Flags: CommandFlagRead},
-	"SELECT": {Handler: (*Server).selectCommand, Arity: 1, Flags: CommandFlagRead},
+	"AUTH":   {Handler: (*Server).authCommand, Arity: 1, Flags: CommandFlagRead, NoWait: true},
+	"ECHO":   {Handler: (*Server).echoCommand, Arity: 1, Flags: CommandFlagRead, NoWait: true},
+	"PING":   {Handler: (*Server).pingCommand, Arity: 0, Flags: CommandFlagRead, NoWait: true},
+	"SELECT": {Handler: (*Server).selectCommand, Arity: 1, Flags: CommandFlagRead, NoWait: true},
 	// Generic
 	"DEL":      {Handler: (*Server).delCommand, Arity: -1, Flags: CommandFlagWrite},
 	"EXISTS":   {Handler: (*Server).existsCommand, Arity: -1, Flags: CommandFlagRead},

@@ -6,11 +6,12 @@ import (
 )
 
 type Client struct {
-	ID          uint64
-	DB          int
-	Conn        net.Conn
-	Reader      *bufio.Reader
-	LastCommand []string
+	ID            uint64
+	DB            int
+	Conn          net.Conn
+	Reader        *bufio.Reader
+	LastCommand   []string
+	Authenticated bool
 }
 
 func NewClient(conn net.Conn, id uint64) *Client {

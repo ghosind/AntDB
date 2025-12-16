@@ -7,6 +7,7 @@ type serverBuilder struct {
 
 	hz                  int
 	activeExpireSamples int
+	requirePass         string
 }
 
 type ServerOption func(*serverBuilder)
@@ -38,5 +39,11 @@ func WithServerHZ(hz int) ServerOption {
 func WithActiveExpireSamples(samples int) ServerOption {
 	return func(sb *serverBuilder) {
 		sb.activeExpireSamples = samples
+	}
+}
+
+func WithRequirePass(password string) ServerOption {
+	return func(sb *serverBuilder) {
+		sb.requirePass = password
 	}
 }

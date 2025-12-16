@@ -36,6 +36,7 @@ type Server struct {
 
 	hz                  int
 	activeExpireSamples int
+	requirePass         string
 }
 
 func NewServer(options ...ServerOption) *Server {
@@ -66,6 +67,7 @@ func NewServer(options ...ServerOption) *Server {
 
 	s.hz = s.withIntOption(builder.hz, defaultServerHz)
 	s.activeExpireSamples = s.withIntOption(builder.activeExpireSamples, defaultServerActiveExpireSamples)
+	s.requirePass = builder.requirePass
 
 	go s.serverCron()
 
@@ -142,8 +144,43 @@ func (s *Server) handleConnection(cli *client.Client) {
 			}
 		}
 
-		s.requests[cli.DB] <- cli
+		if err := s.checkAuthentication(cli); err != nil {
+			cli.ReplyError(err.Error())
+			continue
+		}
+
+		isNoWait := false
+		if len(cli.LastCommand) > 0 {
+			cmd, ok := dbCommands[strings.ToUpper(cli.LastCommand[0])]
+			if !ok {
+				cli.ReplyError(fmt.Sprintf("ERR unknown command '%s'", cli.LastCommand[0]))
+				continue
+			}
+			isNoWait = cmd.NoWait
+		}
+
+		if isNoWait {
+			s.handleCommand(cli)
+		} else {
+			s.requests[cli.DB] <- cli
+		}
 	}
+}
+
+func (s *Server) checkAuthentication(cli *client.Client) error {
+	if s.requirePass == "" {
+		return nil
+	}
+	if len(cli.LastCommand) > 0 {
+		cmd := strings.ToUpper(cli.LastCommand[0])
+		if cmd == "AUTH" {
+			return nil
+		}
+	}
+	if !cli.Authenticated {
+		return ErrNotPermitted
+	}
+	return nil
 }
 
 func (s *Server) handleCommand(cli *client.Client) {

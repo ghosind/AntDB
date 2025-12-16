@@ -6,6 +6,22 @@ import (
 	"github.com/ghosind/antdb/client"
 )
 
+func (s *Server) authCommand(cli *client.Client, args ...string) error {
+	if s.requirePass == "" {
+		cli.ReplySimpleString("OK")
+		return nil
+	}
+
+	password := args[0]
+	if password != s.requirePass {
+		return ErrInvalidPassword
+	}
+
+	cli.Authenticated = true
+	cli.ReplySimpleString("OK")
+	return nil
+}
+
 func (s *Server) echoCommand(cli *client.Client, args ...string) error {
 	cli.ReplyBulkString(args[0])
 	return nil
