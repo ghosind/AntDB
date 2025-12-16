@@ -27,6 +27,13 @@ func (s *Server) getCommand(cli *client.Client, args ...string) error {
 	return nil
 }
 
+func (s *Server) getsetCommand(cli *client.Client, args ...string) error {
+	key := args[0]
+	value := args[1]
+
+	return s.genericSetCommand(cli, key, value, 0, 0, true)
+}
+
 func (s *Server) setCommand(cli *client.Client, args ...string) (err error) {
 	key := args[0]
 	value := args[1]
@@ -67,25 +74,33 @@ func (s *Server) setCommand(cli *client.Client, args ...string) (err error) {
 		}
 	}
 
-	return s.genericSetCommand(cli, key, value, flag, expires)
+	return s.genericSetCommand(cli, key, value, flag, expires, false)
 }
 
 func (s *Server) setnxCommand(cli *client.Client, args ...string) error {
 	key := args[0]
 	value := args[1]
 
-	return s.genericSetCommand(cli, key, value, core.SetFlagNX, 9)
+	return s.genericSetCommand(cli, key, value, core.SetFlagNX, 9, false)
 }
 
-func (s *Server) genericSetCommand(cli *client.Client, key, value string, flag core.SetFlag, expires int64) error {
+func (s *Server) genericSetCommand(
+	cli *client.Client,
+	key, value string,
+	flag core.SetFlag,
+	expires int64,
+	getOld bool,
+) error {
 	db := s.databases[cli.DB]
 
-	ok, err := db.Set(key, value, flag, expires)
+	ok, oldVal, err := db.Set(key, value, flag, expires)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if !ok || (getOld && oldVal == "") {
 		cli.ReplyNilBulk()
+	} else if getOld {
+		cli.ReplyBulkString(oldVal)
 	} else {
 		cli.ReplySimpleString("OK")
 	}

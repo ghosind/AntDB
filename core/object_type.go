@@ -15,3 +15,10 @@ func (t ObjectType) String() string {
 
 	return "unknown"
 }
+
+type ObjectEncoding int
+
+const (
+	EncodingRaw ObjectEncoding = iota
+	EncodingInt
+)
