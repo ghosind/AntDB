@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ghosind/antdb/client"
-	database "github.com/ghosind/antdb/core"
+	"github.com/ghosind/antdb/core"
 )
 
 func (s *Server) getCommand(cli *client.Client, args ...string) error {
@@ -30,7 +30,7 @@ func (s *Server) getCommand(cli *client.Client, args ...string) error {
 func (s *Server) setCommand(cli *client.Client, args ...string) (err error) {
 	key := args[0]
 	value := args[1]
-	flag := database.SetFlag(0)
+	flag := core.SetFlag(0)
 	expires := int64(0)
 	skip := false
 
@@ -42,9 +42,9 @@ func (s *Server) setCommand(cli *client.Client, args ...string) (err error) {
 
 		switch strings.ToUpper(v) {
 		case "NX":
-			flag |= database.SetFlagNX
+			flag |= core.SetFlagNX
 		case "XX":
-			flag |= database.SetFlagXX
+			flag |= core.SetFlagXX
 		case "EX":
 			if i+1 >= len(args) {
 				return ErrSyntax
@@ -74,10 +74,10 @@ func (s *Server) setnxCommand(cli *client.Client, args ...string) error {
 	key := args[0]
 	value := args[1]
 
-	return s.genericSetCommand(cli, key, value, database.SetFlagNX, 9)
+	return s.genericSetCommand(cli, key, value, core.SetFlagNX, 9)
 }
 
-func (s *Server) genericSetCommand(cli *client.Client, key, value string, flag database.SetFlag, expires int64) error {
+func (s *Server) genericSetCommand(cli *client.Client, key, value string, flag core.SetFlag, expires int64) error {
 	db := s.databases[cli.DB]
 
 	ok, err := db.Set(key, value, flag, expires)

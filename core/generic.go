@@ -1,4 +1,4 @@
-package database
+package core
 
 import "time"
 
@@ -59,6 +59,14 @@ func (db *Database) Move(key string, dest *Database) bool {
 		dest.expires[key] = obj.Expires
 	}
 	return true
+}
+
+func (db *Database) RandomKey() (string, bool) {
+	for key := range db.data {
+		return key, true
+	}
+
+	return "", false
 }
 
 func (db *Database) Rename(key, newKey string, nx bool) (bool, error) {

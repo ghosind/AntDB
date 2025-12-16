@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ghosind/antdb/client"
-	database "github.com/ghosind/antdb/core"
+	"github.com/ghosind/antdb/core"
 )
 
 func (s *Server) delCommand(cli *client.Client, args ...string) error {
@@ -86,9 +86,21 @@ func (s *Server) renameCommand(cli *client.Client, args ...string) error {
 	newKey := args[1]
 	ok, err := db.Rename(key, newKey, false)
 	if err != nil || !ok {
-		return database.ErrNoSuchKey
+		return core.ErrNoSuchKey
 	}
 	cli.ReplySimpleString("OK")
+	return nil
+}
+
+func (s *Server) randomKeyCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key, ok := db.RandomKey()
+	if ok {
+		cli.ReplyBulkString(key)
+	} else {
+		cli.ReplyNilBulk()
+	}
 	return nil
 }
 

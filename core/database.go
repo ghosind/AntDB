@@ -1,4 +1,4 @@
-package database
+package core
 
 import (
 	"context"
@@ -22,6 +22,16 @@ func NewDatabase() *Database {
 		},
 	}
 	return db
+}
+
+func (db *Database) Clear() {
+	for key, obj := range db.data {
+		db.removeKey(key, obj)
+	}
+}
+
+func (db *Database) Size() int64 {
+	return int64(len(db.data))
 }
 
 func (db *Database) CheckExpire(ctx context.Context, sample int) int {

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/ghosind/antdb/client"
-	database "github.com/ghosind/antdb/core"
+	"github.com/ghosind/antdb/core"
 )
 
 const (
@@ -29,7 +29,7 @@ type Server struct {
 	host        string
 	port        int
 	listener    net.Listener
-	databases   []*database.Database
+	databases   []*core.Database
 	connections map[uint64]*client.Client
 	counter     atomic.Uint64
 	requests    []chan *client.Client
@@ -57,11 +57,11 @@ func NewServer(options ...ServerOption) *Server {
 		s.port = builder.port
 	}
 
-	s.databases = make([]*database.Database, s.databaseNum)
+	s.databases = make([]*core.Database, s.databaseNum)
 	s.requests = make([]chan *client.Client, s.databaseNum)
 	s.connections = make(map[uint64]*client.Client)
 	for i := 0; i < s.databaseNum; i++ {
-		s.databases[i] = database.NewDatabase()
+		s.databases[i] = core.NewDatabase()
 		s.requests[i] = make(chan *client.Client)
 	}
 
