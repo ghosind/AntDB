@@ -40,8 +40,12 @@ var dbCommands map[string]DBCommand = map[string]DBCommand{
 	"FLUSHALL": {Handler: (*Server).flushAllCommand, Arity: 0, Flags: CommandFlagWrite},
 	"FLUSHDB":  {Handler: (*Server).flushDBCommand, Arity: 0, Flags: CommandFlagWrite},
 	// String
+	"DECR":   {Handler: (*Server).decrCommand, Arity: 1, Flags: CommandFlagWrite},
+	"DECRBY": {Handler: (*Server).decrByCommand, Arity: 2, Flags: CommandFlagWrite},
 	"GET":    {Handler: (*Server).getCommand, Arity: 1, Flags: CommandFlagRead},
 	"GETSET": {Handler: (*Server).getsetCommand, Arity: 2, Flags: CommandFlagWrite},
+	"INCR":   {Handler: (*Server).incrCommand, Arity: 1, Flags: CommandFlagWrite},
+	"INCRBY": {Handler: (*Server).incrByCommand, Arity: 2, Flags: CommandFlagWrite},
 	"SET":    {Handler: (*Server).setCommand, Arity: -2, Flags: CommandFlagWrite},
 	"SETNX":  {Handler: (*Server).setnxCommand, Arity: 2, Flags: CommandFlagWrite},
 }

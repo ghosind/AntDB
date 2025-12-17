@@ -9,6 +9,37 @@ import (
 	"github.com/ghosind/antdb/core"
 )
 
+func (s *Server) decrCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key := args[0]
+	val, err := db.Incr(key, -1)
+	if err != nil {
+		return err
+	}
+
+	cli.ReplyInteger(val)
+	return nil
+}
+
+func (s *Server) decrByCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key := args[0]
+	decrBy, err := strconv.ParseInt(args[1], 10, 64)
+	if err != nil {
+		return core.ErrNotInteger
+	}
+
+	val, err := db.Incr(key, -decrBy)
+	if err != nil {
+		return err
+	}
+
+	cli.ReplyInteger(val)
+	return nil
+}
+
 func (s *Server) getCommand(cli *client.Client, args ...string) error {
 	db := s.databases[cli.DB]
 
@@ -32,6 +63,37 @@ func (s *Server) getsetCommand(cli *client.Client, args ...string) error {
 	value := args[1]
 
 	return s.genericSetCommand(cli, key, value, 0, 0, true)
+}
+
+func (s *Server) incrCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key := args[0]
+	val, err := db.Incr(key, 1)
+	if err != nil {
+		return err
+	}
+
+	cli.ReplyInteger(val)
+	return nil
+}
+
+func (s *Server) incrByCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key := args[0]
+	incrBy, err := strconv.ParseInt(args[1], 10, 64)
+	if err != nil {
+		return core.ErrNotInteger
+	}
+
+	val, err := db.Incr(key, incrBy)
+	if err != nil {
+		return err
+	}
+
+	cli.ReplyInteger(val)
+	return nil
 }
 
 func (s *Server) setCommand(cli *client.Client, args ...string) (err error) {

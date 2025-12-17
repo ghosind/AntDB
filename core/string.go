@@ -31,13 +31,7 @@ func (db *Database) Set(key string, value string, flag SetFlag, expires int64) (
 		obj = db.newObject()
 		db.data[key] = obj
 	} else {
-		// Save old value for return
-		switch obj.Encoding {
-		case EncodingRaw:
-			oldVal = obj.Value.(string)
-		case EncodingInt:
-			oldVal = strconv.FormatInt(obj.Value.(int64), 10)
-		}
+		oldVal = obj.StringValue()
 	}
 
 	if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
@@ -63,12 +57,33 @@ func (db *Database) Get(key string) (string, bool, error) {
 		return "", false, err
 	}
 
-	val := obj.Value
-	if obj.Encoding == EncodingRaw {
-		return val.(string), true, nil
+	val := obj.StringValue()
+
+	return val, true, nil
+}
+
+func (db *Database) Incr(key string, delta int64) (int64, error) {
+	obj, err := db.lookupKey(key, TypeString, true)
+	if err != nil {
+		return 0, err
 	}
 
-	str := strconv.FormatInt(val.(int64), 10)
+	val := delta
 
-	return str, true, nil
+	if obj == nil {
+		obj = db.newObject()
+		obj.Type = TypeString
+		obj.Value = int64(val)
+		db.data[key] = obj
+	} else {
+		v, err := obj.IntValue()
+		if err != nil {
+			return 0, err
+		}
+		val += v
+		obj.Value = val
+	}
+
+	obj.Encoding = EncodingInt
+	return val, nil
 }
