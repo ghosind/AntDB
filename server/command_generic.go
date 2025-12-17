@@ -61,6 +61,22 @@ func (s *Server) expireAtCommand(cli *client.Client, args ...string) error {
 	return nil
 }
 
+func (s *Server) keysCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	pattern := args[0]
+	keys, err := db.Keys(pattern)
+	if err != nil {
+		return err
+	}
+
+	cli.ReplyArrayLength(int64(len(keys)))
+	for _, key := range keys {
+		cli.ReplyBulkString(key)
+	}
+	return nil
+}
+
 func (s *Server) moveCommand(cli *client.Client, args ...string) error {
 	db := s.databases[cli.DB]
 

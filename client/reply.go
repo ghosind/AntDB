@@ -38,6 +38,11 @@ func (cli *Client) ReplyNilBulk() (int, error) {
 	return cli.rely([]byte("$-1\r\n"))
 }
 
+func (cli *Client) ReplyArrayLength(length int64) (int, error) {
+	data := []byte("*" + strconv.FormatInt(length, 10) + "\r\n")
+	return cli.rely(data)
+}
+
 func (cli *Client) rely(reply []byte) (int, error) {
 	return cli.Conn.Write(reply)
 }

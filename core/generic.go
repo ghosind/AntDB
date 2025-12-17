@@ -1,6 +1,10 @@
 package core
 
-import "time"
+import (
+	"time"
+
+	"github.com/ghosind/antdb/util"
+)
 
 func (db *Database) Del(keys ...string) int {
 	cnt := 0
@@ -39,6 +43,28 @@ func (db *Database) Expire(key string, expire int64) bool {
 	db.expires[key] = expire
 
 	return true
+}
+
+func (db *Database) Keys(globPattern string) ([]string, error) {
+	pattern, err := util.GlobToRegexp(globPattern)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0)
+
+	for key := range db.data {
+		_, err := db.lookupKey(key, TypeNone, true)
+		if err != nil {
+			continue
+		}
+
+		if pattern.MatchString(key) {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, nil
 }
 
 func (db *Database) Move(key string, dest *Database) bool {

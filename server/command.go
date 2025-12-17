@@ -29,6 +29,7 @@ var dbCommands map[string]DBCommand = map[string]DBCommand{
 	"EXISTS":    {Handler: (*Server).existsCommand, Arity: -1, Flags: CommandFlagRead},
 	"EXPIRE":    {Handler: (*Server).expireCommand, Arity: 2, Flags: CommandFlagWrite},
 	"EXPIREAT":  {Handler: (*Server).expireAtCommand, Arity: 2, Flags: CommandFlagWrite},
+	"KEYS":      {Handler: (*Server).keysCommand, Arity: 1, Flags: CommandFlagRead},
 	"MOVE":      {Handler: (*Server).moveCommand, Arity: 2, Flags: CommandFlagWrite},
 	"RANDOMKEY": {Handler: (*Server).randomKeyCommand, Arity: 0, Flags: CommandFlagRead},
 	"RENAME":    {Handler: (*Server).renameCommand, Arity: 2, Flags: CommandFlagWrite},
