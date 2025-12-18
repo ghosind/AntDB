@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -30,7 +31,7 @@ type Server struct {
 	port        int
 	listener    net.Listener
 	databases   []*core.Database
-	connections map[uint64]*client.Client
+	connections sync.Map
 	counter     atomic.Uint64
 	requests    []chan *client.Client
 
@@ -59,7 +60,7 @@ func NewServer(options ...ServerOption) *Server {
 
 	s.databases = make([]*core.Database, s.databaseNum)
 	s.requests = make([]chan *client.Client, s.databaseNum)
-	s.connections = make(map[uint64]*client.Client)
+	s.connections = sync.Map{}
 	for i := 0; i < s.databaseNum; i++ {
 		s.databases[i] = core.NewDatabase()
 		s.requests[i] = make(chan *client.Client)
@@ -107,7 +108,7 @@ func (s *Server) Listen() error {
 		}
 		id := s.counter.Add(1)
 		client := client.NewClient(conn, id)
-		s.connections[id] = client
+		s.connections.Store(id, client)
 		go s.handleConnection(client)
 	}
 }
@@ -121,7 +122,7 @@ func (s *Server) loop(dbIndex int) {
 
 func (s *Server) handleConnection(cli *client.Client) {
 	defer func() {
-		delete(s.connections, cli.ID)
+		s.connections.Delete(cli.ID)
 		cli.Conn.Close()
 	}()
 
