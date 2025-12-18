@@ -115,7 +115,7 @@ func (s *Server) Listen() error {
 func (s *Server) loop(dbIndex int) {
 	for {
 		cli := <-s.requests[dbIndex]
-		s.handleCommand(cli)
+		s.handleCommand(cli, cli.LastCommand[0], cli.LastCommand[1:]...)
 	}
 }
 
@@ -149,6 +149,12 @@ func (s *Server) handleConnection(cli *client.Client) {
 			continue
 		}
 
+		if cli.Flag&client.CLIENT_MULTI != 0 && strings.ToUpper(cli.LastCommand[0]) != "EXEC" {
+			cli.State = append(cli.State, cli.LastCommand)
+			cli.ReplySimpleString("QUEUED")
+			continue
+		}
+
 		isNoWait := false
 		if len(cli.LastCommand) > 0 {
 			cmd, ok := dbCommands[strings.ToUpper(cli.LastCommand[0])]
@@ -160,7 +166,7 @@ func (s *Server) handleConnection(cli *client.Client) {
 		}
 
 		if isNoWait {
-			s.handleCommand(cli)
+			s.handleCommand(cli, cli.LastCommand[0], cli.LastCommand[1:]...)
 		} else {
 			s.requests[cli.DB] <- cli
 		}
@@ -183,25 +189,22 @@ func (s *Server) checkAuthentication(cli *client.Client) error {
 	return nil
 }
 
-func (s *Server) handleCommand(cli *client.Client) {
-	parts := cli.LastCommand
-	if len(parts) == 0 {
-		return
-	}
+func (s *Server) handleCommand(cli *client.Client, cmdStr string, args ...string) {
+	cmdStr = strings.ToUpper(cmdStr)
 
-	cmd, ok := dbCommands[strings.ToUpper(parts[0])]
+	cmd, ok := dbCommands[cmdStr]
 	if !ok {
-		cli.ReplyError(fmt.Sprintf("ERR unknown command '%s'", parts[0]))
+		cli.ReplyError(fmt.Sprintf("ERR unknown command '%s'", cmdStr))
 		return
 	}
 
-	if (cmd.Arity > 0 && cmd.Arity != len(parts)-1) ||
-		(cmd.Arity <= 0 && len(parts)-1 < -cmd.Arity) {
-		cli.ReplyError(newWrongArityError(parts[0]).Error())
+	if (cmd.Arity > 0 && cmd.Arity != len(args)) ||
+		(cmd.Arity <= 0 && len(args) < -cmd.Arity) {
+		cli.ReplyError(newWrongArityError(cmdStr).Error())
 		return
 	}
 
-	err := cmd.Handler(s, cli, parts[1:]...)
+	err := cmd.Handler(s, cli, args...)
 	if err != nil {
 		cli.ReplyError(err.Error())
 	}
