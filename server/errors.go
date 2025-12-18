@@ -9,6 +9,10 @@ var (
 	ErrNotPermitted    = errors.New("operation not permitted")
 )
 
+func newUnknownCommandError(cmd string) error {
+	return errors.New("unknown command '" + cmd + "'")
+}
+
 func newWrongArityError(cmd string) error {
 	return errors.New("wrong number of arguments for '" + cmd + "' command")
 }

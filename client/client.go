@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"net"
+	"sync"
 )
 
 const (
@@ -14,17 +15,26 @@ type Client struct {
 	DB            int
 	Conn          net.Conn
 	Reader        *bufio.Reader
-	LastCommand   []string
+	LastCommand   *Command
 	Authenticated bool
 	Flag          int
-	State         [][]string
+	State         []*Command
 }
 
+var clientPool sync.Pool
+
 func NewClient(conn net.Conn, id uint64) *Client {
-	return &Client{
-		ID:     id,
-		Reader: bufio.NewReader(conn),
-		Conn:   conn,
-		State:  make([][]string, 0),
-	}
+	cli := clientPool.Get().(*Client)
+	cli.ID = id
+	cli.Conn = conn
+	cli.Reader = bufio.NewReader(conn)
+	cli.DB = 0
+	cli.Authenticated = false
+	cli.Flag = 0
+	cli.State = make([]*Command, 0)
+	return cli
+}
+
+func PutClient(cli *Client) {
+	clientPool.Put(cli)
 }

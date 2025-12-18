@@ -8,8 +8,8 @@ import (
 	"log"
 	"net"
 	"strings"
-	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/ghosind/antdb/client"
@@ -31,7 +31,7 @@ type Server struct {
 	port        int
 	listener    net.Listener
 	databases   []*core.Database
-	connections sync.Map
+	connections atomic.Int64
 	counter     atomic.Uint64
 	requests    []chan *client.Client
 
@@ -60,7 +60,6 @@ func NewServer(options ...ServerOption) *Server {
 
 	s.databases = make([]*core.Database, s.databaseNum)
 	s.requests = make([]chan *client.Client, s.databaseNum)
-	s.connections = sync.Map{}
 	for i := 0; i < s.databaseNum; i++ {
 		s.databases[i] = core.NewDatabase()
 		s.requests[i] = make(chan *client.Client)
@@ -107,8 +106,8 @@ func (s *Server) Listen() error {
 			return err
 		}
 		id := s.counter.Add(1)
+		s.connections.Add(1)
 		client := client.NewClient(conn, id)
-		s.connections.Store(id, client)
 		go s.handleConnection(client)
 	}
 }
@@ -116,29 +115,28 @@ func (s *Server) Listen() error {
 func (s *Server) loop(dbIndex int) {
 	for {
 		cli := <-s.requests[dbIndex]
-		s.handleCommand(cli, cli.LastCommand[0], cli.LastCommand[1:]...)
+		s.handleCommand(cli, cli.LastCommand)
 	}
 }
 
 func (s *Server) handleConnection(cli *client.Client) {
 	defer func() {
-		s.connections.Delete(cli.ID)
+		s.connections.Add(-1)
 		cli.Conn.Close()
+		client.PutClient(cli)
 	}()
 
 	for {
 		err := cli.ReadCommand()
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) {
 			break
 		} else if err != nil {
 			log.Printf("Error reading command from client %d: %v", cli.ID, err)
 			continue
 		}
 
-		log.Printf("Client %d: %v", cli.ID, cli.LastCommand)
-
-		if len(cli.LastCommand) > 0 {
-			switch strings.ToUpper(cli.LastCommand[0]) {
+		if cli.LastCommand != nil {
+			switch cli.LastCommand.Command {
 			case "QUIT":
 				cli.ReplySimpleString("OK")
 				return
@@ -150,24 +148,22 @@ func (s *Server) handleConnection(cli *client.Client) {
 			continue
 		}
 
-		if cli.Flag&client.CLIENT_MULTI != 0 && strings.ToUpper(cli.LastCommand[0]) != "EXEC" {
+		if cli.Flag&client.CLIENT_MULTI != 0 && cli.LastCommand.Command != "EXEC" {
 			cli.State = append(cli.State, cli.LastCommand)
 			cli.ReplySimpleString("QUEUED")
 			continue
 		}
 
 		isNoWait := false
-		if len(cli.LastCommand) > 0 {
-			cmd, ok := dbCommands[strings.ToUpper(cli.LastCommand[0])]
-			if !ok {
-				cli.ReplyError(newWrongArityError(cli.LastCommand[0]).Error())
-				continue
-			}
-			isNoWait = cmd.NoWait
+		cmd, ok := dbCommands[strings.ToUpper(cli.LastCommand.Command)]
+		if !ok {
+			cli.ReplyError(newUnknownCommandError(cli.LastCommand.Command).Error())
+			continue
 		}
+		isNoWait = cmd.NoWait
 
 		if isNoWait {
-			s.handleCommand(cli, cli.LastCommand[0], cli.LastCommand[1:]...)
+			s.handleCommand(cli, cli.LastCommand)
 		} else {
 			s.requests[cli.DB] <- cli
 		}
@@ -178,9 +174,8 @@ func (s *Server) checkAuthentication(cli *client.Client) error {
 	if s.requirePass == "" {
 		return nil
 	}
-	if len(cli.LastCommand) > 0 {
-		cmd := strings.ToUpper(cli.LastCommand[0])
-		if cmd == "AUTH" {
+	if cli.LastCommand != nil {
+		if cli.LastCommand.Command == "AUTH" {
 			return nil
 		}
 	}
@@ -190,22 +185,24 @@ func (s *Server) checkAuthentication(cli *client.Client) error {
 	return nil
 }
 
-func (s *Server) handleCommand(cli *client.Client, cmdStr string, args ...string) {
-	cmdStr = strings.ToUpper(cmdStr)
+func (s *Server) handleCommand(cli *client.Client, nextCmd *client.Command) {
+	defer func() {
+		client.PutCommand(nextCmd)
+	}()
 
-	cmd, ok := dbCommands[cmdStr]
+	cmd, ok := dbCommands[nextCmd.Command]
 	if !ok {
-		cli.ReplyError(fmt.Sprintf("ERR unknown command '%s'", cmdStr))
+		cli.ReplyError(newUnknownCommandError(nextCmd.Command).Error())
 		return
 	}
 
-	if (cmd.Arity > 0 && cmd.Arity != len(args)) ||
-		(cmd.Arity <= 0 && len(args) < -cmd.Arity) {
-		cli.ReplyError(newWrongArityError(cmdStr).Error())
+	if (cmd.Arity > 0 && cmd.Arity != len(nextCmd.Args)) ||
+		(cmd.Arity <= 0 && len(nextCmd.Args) < -cmd.Arity) {
+		cli.ReplyError(newWrongArityError(nextCmd.Command).Error())
 		return
 	}
 
-	err := cmd.Handler(s, cli, args...)
+	err := cmd.Handler(s, cli, nextCmd.Args...)
 	if err != nil {
 		cli.ReplyError(err.Error())
 	}

@@ -28,7 +28,17 @@ func (cli *Client) ReadCommand() error {
 
 		fields = strings.Fields(line)
 	}
-	cli.LastCommand = fields
+
+	if len(fields) == 0 {
+		return errors.New("empty command")
+	}
+
+	cmd := GetCommand()
+	cmd.Command = strings.ToUpper(fields[0])
+	if len(fields) > 1 {
+		cmd.Args = fields[1:]
+	}
+	cli.LastCommand = cmd
 
 	return nil
 }
