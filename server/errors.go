@@ -8,3 +8,7 @@ var (
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrNotPermitted    = errors.New("operation not permitted")
 )
+
+func newWrongArityError(cmd string) error {
+	return errors.New("wrong number of arguments for '" + cmd + "' command")
+}

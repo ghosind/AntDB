@@ -58,7 +58,44 @@ func (s *Server) getCommand(cli *client.Client, args ...string) error {
 	return nil
 }
 
-func (s *Server) getsetCommand(cli *client.Client, args ...string) error {
+func (s *Server) substrCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key := args[0]
+	start, err := strconv.Atoi(args[1])
+	if err != nil {
+		return core.ErrNotInteger
+	}
+	end, err := strconv.Atoi(args[2])
+	if err != nil {
+		return core.ErrNotInteger
+	}
+
+	value, found, err := db.Get(key)
+	if err != nil {
+		return err
+	}
+
+	str := ""
+	if found {
+		if start < 0 {
+			start = len(value) + start
+		}
+		if end < 0 {
+			end = len(value) + end
+		}
+
+		if start < len(value) && end < len(value) && start <= end {
+			str = value[start : end+1]
+		}
+	}
+
+	cli.ReplyBulkString(str)
+
+	return nil
+}
+
+func (s *Server) getSetCommand(cli *client.Client, args ...string) error {
 	key := args[0]
 	value := args[1]
 
@@ -93,6 +130,56 @@ func (s *Server) incrByCommand(cli *client.Client, args ...string) error {
 	}
 
 	cli.ReplyInteger(val)
+	return nil
+}
+
+func (s *Server) mgetCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	cli.ReplyArrayLength(int64(len(args)))
+	for _, key := range args {
+		value, found, err := db.Get(key)
+		if err != nil || !found {
+			cli.ReplyNilBulk()
+		} else {
+			cli.ReplyBulkString(value)
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) msetCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	if len(args)%2 != 0 {
+		return newWrongArityError("mset")
+	}
+
+	db.MSet(false, args...)
+
+	cli.ReplySimpleString("OK")
+	return nil
+}
+
+func (s *Server) msetnxCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	if len(args)%2 != 0 {
+		return newWrongArityError("msetnx")
+	}
+
+	ok, err := db.MSet(true, args...)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		cli.ReplyInteger(1)
+	} else {
+		cli.ReplyInteger(0)
+	}
+
 	return nil
 }
 

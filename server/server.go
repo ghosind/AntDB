@@ -153,7 +153,7 @@ func (s *Server) handleConnection(cli *client.Client) {
 		if len(cli.LastCommand) > 0 {
 			cmd, ok := dbCommands[strings.ToUpper(cli.LastCommand[0])]
 			if !ok {
-				cli.ReplyError(fmt.Sprintf("ERR unknown command '%s'", cli.LastCommand[0]))
+				cli.ReplyError(newWrongArityError(cli.LastCommand[0]).Error())
 				continue
 			}
 			isNoWait = cmd.NoWait
@@ -197,7 +197,7 @@ func (s *Server) handleCommand(cli *client.Client) {
 
 	if (cmd.Arity > 0 && cmd.Arity != len(parts)-1) ||
 		(cmd.Arity <= 0 && len(parts)-1 < -cmd.Arity) {
-		cli.ReplyError(fmt.Sprintf("ERR wrong number of arguments for '%s' command", parts[0]))
+		cli.ReplyError(newWrongArityError(parts[0]).Error())
 		return
 	}
 

@@ -20,6 +20,17 @@ func (obj *Object) IsExpired() bool {
 	return obj.Expires < time.Now().UnixMilli()
 }
 
+func (obj *Object) SetStringValue(val string) {
+	if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
+		obj.Value = intVal
+		obj.Encoding = EncodingInt
+	} else {
+		obj.Encoding = EncodingRaw
+		obj.Value = val
+	}
+	obj.Type = TypeString
+}
+
 func (obj *Object) StringValue() string {
 	if obj == nil || obj.Type != TypeString {
 		return ""
