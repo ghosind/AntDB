@@ -1,9 +1,9 @@
 package server
 
 type serverBuilder struct {
-	host        string
-	port        int
-	databaseNum int
+	bind      string
+	port      int
+	databases int
 
 	hz                  int
 	activeExpireSamples int
@@ -12,25 +12,25 @@ type serverBuilder struct {
 
 type ServerOption func(*serverBuilder)
 
-func WithServerHost(host string) ServerOption {
+func WithBind(bind string) ServerOption {
 	return func(sb *serverBuilder) {
-		sb.host = host
+		sb.bind = bind
 	}
 }
 
-func WithServerPort(port int) ServerOption {
+func WithPort(port int) ServerOption {
 	return func(sb *serverBuilder) {
 		sb.port = port
 	}
 }
 
-func WithDatabaseNum(num int) ServerOption {
+func WithDatabases(num int) ServerOption {
 	return func(sb *serverBuilder) {
-		sb.databaseNum = num
+		sb.databases = num
 	}
 }
 
-func WithServerHZ(hz int) ServerOption {
+func WithHZ(hz int) ServerOption {
 	return func(sb *serverBuilder) {
 		sb.hz = hz
 	}

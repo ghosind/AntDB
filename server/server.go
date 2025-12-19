@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultServerHost      = "127.0.0.1"
+	defaultServerBind      = "127.0.0.1"
 	defaultServerPort      = 6379
 	defaultServerDatabases = 16
 
@@ -27,7 +27,7 @@ const (
 
 type Server struct {
 	databaseNum int
-	host        string
+	bind        string
 	port        int
 	listener    net.Listener
 	databases   []*core.Database
@@ -41,22 +41,16 @@ type Server struct {
 }
 
 func NewServer(options ...ServerOption) *Server {
-	s := newDefaultServer()
+	s := new(Server)
 	builder := new(serverBuilder)
 
 	for _, option := range options {
 		option(builder)
 	}
 
-	if builder.databaseNum > 0 {
-		s.databaseNum = builder.databaseNum
-	}
-	if builder.host != "" {
-		s.host = builder.host
-	}
-	if builder.port > 0 {
-		s.port = builder.port
-	}
+	s.databaseNum = s.withIntOption(builder.databases, defaultServerDatabases)
+	s.bind = s.withStringOption(builder.bind, defaultServerBind)
+	s.port = s.withIntOption(builder.port, defaultServerPort)
 
 	s.databases = make([]*core.Database, s.databaseNum)
 	s.requests = make([]chan *client.Client, s.databaseNum)
@@ -74,18 +68,8 @@ func NewServer(options ...ServerOption) *Server {
 	return s
 }
 
-func newDefaultServer() *Server {
-	s := new(Server)
-
-	s.host = defaultServerHost
-	s.port = defaultServerPort
-	s.databaseNum = defaultServerDatabases
-
-	return s
-}
-
 func (s *Server) Listen() error {
-	address := fmt.Sprintf("%s:%d", s.host, s.port)
+	address := fmt.Sprintf("%s:%d", s.bind, s.port)
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -242,6 +226,13 @@ func (s *Server) serverCron() {
 
 func (s *Server) withIntOption(val int, defaultVal int) int {
 	if val > 0 {
+		return val
+	}
+	return defaultVal
+}
+
+func (s *Server) withStringOption(val string, defaultVal string) string {
+	if val != "" {
 		return val
 	}
 	return defaultVal
