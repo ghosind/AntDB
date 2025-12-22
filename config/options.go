@@ -6,16 +6,52 @@ import (
 	"github.com/ghosind/antdb/server"
 )
 
-var optionsBuilders = map[string]func(*Config) server.ServerOption{
-	"port": func(cfg *Config) server.ServerOption { return buildIntOption(cfg, "port", server.WithPort) },
-	"bind": func(cfg *Config) server.ServerOption { return buildStringOption(cfg, "bind", server.WithBind) },
+type ServerOptionParamType int
+
+const (
+	ServerOptionParamTypeInt ServerOptionParamType = iota
+	ServerOptionParamTypeString
+)
+
+type ServerOptionParam struct {
+	Name          string
+	Type          ServerOptionParamType
+	OptionBuilder any
+}
+
+func (p *ServerOptionParam) BuildOption(cfg *Config) server.ServerOption {
+	switch p.Type {
+	case ServerOptionParamTypeInt:
+		return buildIntOption(cfg, p.Name, p.OptionBuilder.(func(int) server.ServerOption))
+	case ServerOptionParamTypeString:
+		return buildStringOption(cfg, p.Name, p.OptionBuilder.(func(string) server.ServerOption))
+	default:
+		return nil
+	}
+}
+
+var optionParams = map[string]ServerOptionParam{
+	"port":      {Name: "port", Type: ServerOptionParamTypeInt, OptionBuilder: server.WithPort},
+	"bind":      {Name: "bind", Type: ServerOptionParamTypeString, OptionBuilder: server.WithBind},
+	"databases": {Name: "databases", Type: ServerOptionParamTypeInt, OptionBuilder: server.WithDatabases},
+	"hz":        {Name: "hz", Type: ServerOptionParamTypeInt, OptionBuilder: server.WithHZ},
+	"active-expire-samples": {
+		Name:          "active-expire-samples",
+		Type:          ServerOptionParamTypeInt,
+		OptionBuilder: server.WithActiveExpireSamples,
+	},
+	"requirepass": {
+		Name:          "requirepass",
+		Type:          ServerOptionParamTypeString,
+		OptionBuilder: server.WithRequirePass,
+	},
 }
 
 func BuildOptionsByConfig(cfg *Config) []server.ServerOption {
 	var options []server.ServerOption
 
-	for _, builder := range optionsBuilders {
-		option := builder(cfg)
+	for _, param := range optionParams {
+		option := param.BuildOption(cfg)
 		if option != nil {
 			options = append(options, option)
 		}
