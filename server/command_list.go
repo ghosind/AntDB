@@ -94,6 +94,25 @@ func (s *Server) lrangeCommand(cli *client.Client, args ...string) error {
 	return nil
 }
 
+func (s *Server) lremCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key := args[0]
+	count, err := strconv.Atoi(args[1])
+	if err != nil {
+		return core.ErrNotInteger
+	}
+	value := args[2]
+
+	removed, err := db.ListRemove(key, count, value)
+	if err != nil {
+		return err
+	}
+
+	cli.ReplyInteger(removed)
+	return nil
+}
+
 func (s *Server) lsetCommand(cli *client.Client, args ...string) error {
 	db := s.databases[cli.DB]
 
@@ -112,6 +131,27 @@ func (s *Server) lsetCommand(cli *client.Client, args ...string) error {
 	return nil
 }
 
+func (s *Server) ltrimCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	key := args[0]
+	start, err := strconv.Atoi(args[1])
+	if err != nil {
+		return core.ErrNotInteger
+	}
+	end, err := strconv.Atoi(args[2])
+	if err != nil {
+		return core.ErrNotInteger
+	}
+
+	err = db.ListTrim(key, start, end)
+	if err != nil {
+		return err
+	}
+	cli.ReplySimpleString("OK")
+	return nil
+}
+
 func (s *Server) rpopCommand(cli *client.Client, args ...string) error {
 	db := s.databases[cli.DB]
 
@@ -123,6 +163,23 @@ func (s *Server) rpopCommand(cli *client.Client, args ...string) error {
 		cli.ReplyNilBulk()
 	} else {
 		cli.ReplyBulkString(value)
+	}
+	return nil
+}
+
+func (s *Server) rpoplpushCommand(cli *client.Client, args ...string) error {
+	db := s.databases[cli.DB]
+
+	sourceKey := args[0]
+	destKey := args[1]
+
+	val, found, err := db.ListRPopLPush(sourceKey, destKey)
+	if err != nil {
+		return err
+	} else if !found {
+		cli.ReplyNilBulk()
+	} else {
+		cli.ReplyBulkString(val)
 	}
 	return nil
 }

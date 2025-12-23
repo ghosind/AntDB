@@ -104,3 +104,17 @@ func (ll *LinkedList) Set(index int, value string) error {
 	current.Value = value
 	return nil
 }
+
+func (ll *LinkedList) RemoveNode(node *LinkedListNode) {
+	if node.Prev != nil {
+		node.Prev.Next = node.Next
+	} else {
+		ll.Head = node.Next
+	}
+	if node.Next != nil {
+		node.Next.Prev = node.Prev
+	} else {
+		ll.Tail = node.Prev
+	}
+	ll.Size--
+}
