@@ -25,7 +25,7 @@ func (db *Database) ListLen(key string) (int, error) {
 }
 
 func (db *Database) ListPop(key string, left bool) (string, bool, error) {
-	obj, err := db.lookupKey(key, TypeList, false)
+	obj, err := db.lookupKey(key, TypeList, true)
 	if err != nil || obj == nil {
 		return "", false, err
 	}
@@ -50,7 +50,7 @@ func (db *Database) ListPop(key string, left bool) (string, bool, error) {
 }
 
 func (db *Database) ListPush(key string, value string, left bool) (int, error) {
-	obj, err := db.lookupKey(key, TypeList, false)
+	obj, err := db.lookupKey(key, TypeList, true)
 	if err != nil {
 		return 0, err
 	}
@@ -63,9 +63,6 @@ func (db *Database) ListPush(key string, value string, left bool) (int, error) {
 			Value: list,
 		}
 		db.data[key] = obj
-	} else if obj.Expires != 0 {
-		delete(db.expires, key)
-		obj.Expires = 0
 	}
 	list = obj.Value.(*LinkedList)
 	if left {
@@ -188,7 +185,7 @@ func (db *Database) ListRPopLPush(sourceKey, destKey string) (string, bool, erro
 	if err != nil || sourceObj == nil {
 		return "", false, err
 	}
-	destObj, err := db.lookupKey(destKey, TypeList, false)
+	destObj, err := db.lookupKey(destKey, TypeList, true)
 	if err != nil {
 		return "", false, err
 	}
@@ -208,9 +205,6 @@ func (db *Database) ListRPopLPush(sourceKey, destKey string) (string, bool, erro
 			Value: &LinkedList{},
 		}
 		db.data[destKey] = destObj
-	} else if destObj.Expires != 0 {
-		delete(db.expires, destKey)
-		destObj.Expires = 0
 	}
 
 	destList := destObj.Value.(*LinkedList)

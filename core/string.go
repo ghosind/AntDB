@@ -101,7 +101,6 @@ func (db *Database) Set(key string, value string, flag SetFlag, expires int64) (
 		obj = db.newObject()
 		db.data[key] = obj
 	} else {
-		delete(db.expires, key)
 		oldVal = obj.StringValue()
 	}
 

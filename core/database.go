@@ -86,6 +86,7 @@ func (db *Database) lookupKey(key string, expectedType ObjectType, isEvict bool)
 
 	if obj.IsExpired() {
 		if !isEvict {
+			delete(db.expires, key)
 			return obj, nil
 		}
 
