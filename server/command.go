@@ -55,6 +55,14 @@ func init() {
 		"DBSIZE":   {Handler: (*Server).dbSizeCommand, Arity: 0, Flags: CommandFlagRead},
 		"FLUSHALL": {Handler: (*Server).flushAllCommand, Arity: 0, Flags: CommandFlagWrite},
 		"FLUSHDB":  {Handler: (*Server).flushDBCommand, Arity: 0, Flags: CommandFlagWrite},
+		// Set
+		"SADD":        {Handler: (*Server).saddCommand, Arity: -2, Flags: CommandFlagWrite},
+		"SCARD":       {Handler: (*Server).scardCommand, Arity: 1, Flags: CommandFlagRead},
+		"SISMEMBER":   {Handler: (*Server).sismemberCommand, Arity: 2, Flags: CommandFlagRead},
+		"SMEMBERS":    {Handler: (*Server).smembersCommand, Arity: 1, Flags: CommandFlagRead},
+		"SPOP":        {Handler: (*Server).spopCommand, Arity: 1, Flags: CommandFlagWrite},
+		"SRANDMEMBER": {Handler: (*Server).srandmemberCommand, Arity: -1, Flags: CommandFlagRead},
+		"SREM":        {Handler: (*Server).sremCommand, Arity: -2, Flags: CommandFlagWrite},
 		// String
 		"DECR":   {Handler: (*Server).decrCommand, Arity: 1, Flags: CommandFlagWrite},
 		"DECRBY": {Handler: (*Server).decrByCommand, Arity: 2, Flags: CommandFlagWrite},

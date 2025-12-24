@@ -6,6 +6,7 @@ const (
 	TypeNone ObjectType = iota
 	TypeString
 	TypeList
+	TypeSet
 )
 
 func (t ObjectType) String() string {
@@ -14,6 +15,8 @@ func (t ObjectType) String() string {
 		return "string"
 	case TypeList:
 		return "list"
+	case TypeSet:
+		return "set"
 	}
 
 	return "unknown"
