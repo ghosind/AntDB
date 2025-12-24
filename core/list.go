@@ -132,6 +132,10 @@ func (db *Database) ListRemove(key string, count int, value string) (int64, erro
 		}
 	}
 
+	if list.Size == 0 {
+		db.removeKey(key, obj)
+	}
+
 	return cnt, nil
 }
 
@@ -175,6 +179,10 @@ func (db *Database) ListTrim(key string, start int, end int) error {
 		}
 		currentNode = nextNode
 		currentIndex++
+	}
+
+	if list.Size == 0 {
+		db.removeKey(key, obj)
 	}
 
 	return nil

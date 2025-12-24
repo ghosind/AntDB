@@ -47,14 +47,7 @@ func (ll *LinkedList) LPop() (string, bool) {
 		return "", false
 	}
 	node := ll.Head
-	if ll.Size == 1 {
-		ll.Head = nil
-		ll.Tail = nil
-	} else {
-		ll.Head = node.Next
-		ll.Head.Prev = nil
-	}
-	ll.Size--
+	ll.RemoveNode(node)
 	return node.Value, true
 }
 
@@ -62,15 +55,9 @@ func (ll *LinkedList) RPop() (string, bool) {
 	if ll.Size == 0 {
 		return "", false
 	}
+
 	node := ll.Tail
-	if ll.Size == 1 {
-		ll.Head = nil
-		ll.Tail = nil
-	} else {
-		ll.Tail = node.Prev
-		ll.Tail.Next = nil
-	}
-	ll.Size--
+	ll.RemoveNode(node)
 	return node.Value, true
 }
 
