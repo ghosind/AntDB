@@ -58,11 +58,18 @@ func init() {
 		// Set
 		"SADD":        {Handler: (*Server).saddCommand, Arity: -2, Flags: CommandFlagWrite},
 		"SCARD":       {Handler: (*Server).scardCommand, Arity: 1, Flags: CommandFlagRead},
+		"SDIFF":       {Handler: (*Server).sdiffCommand, Arity: -1, Flags: CommandFlagRead},
+		"SDIFFSTORE":  {Handler: (*Server).sdiffStoreCommand, Arity: -2, Flags: CommandFlagWrite},
+		"SINTER":      {Handler: (*Server).sinterCommand, Arity: -1, Flags: CommandFlagRead},
+		"SINTERSTORE": {Handler: (*Server).sinterStoreCommand, Arity: -2, Flags: CommandFlagWrite},
 		"SISMEMBER":   {Handler: (*Server).sismemberCommand, Arity: 2, Flags: CommandFlagRead},
+		"SMOVE":       {Handler: (*Server).smoveCommand, Arity: 3, Flags: CommandFlagWrite},
 		"SMEMBERS":    {Handler: (*Server).smembersCommand, Arity: 1, Flags: CommandFlagRead},
 		"SPOP":        {Handler: (*Server).spopCommand, Arity: 1, Flags: CommandFlagWrite},
 		"SRANDMEMBER": {Handler: (*Server).srandmemberCommand, Arity: -1, Flags: CommandFlagRead},
 		"SREM":        {Handler: (*Server).sremCommand, Arity: -2, Flags: CommandFlagWrite},
+		"SUNION":      {Handler: (*Server).sunionCommand, Arity: -1, Flags: CommandFlagRead},
+		"SUNIONSTORE": {Handler: (*Server).sunionStoreCommand, Arity: -2, Flags: CommandFlagWrite},
 		// String
 		"DECR":   {Handler: (*Server).decrCommand, Arity: 1, Flags: CommandFlagWrite},
 		"DECRBY": {Handler: (*Server).decrByCommand, Arity: 2, Flags: CommandFlagWrite},
