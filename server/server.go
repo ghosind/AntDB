@@ -14,6 +14,7 @@ import (
 
 	"github.com/ghosind/antdb/client"
 	"github.com/ghosind/antdb/core"
+	"github.com/panjf2000/gnet/v2"
 )
 
 const (
@@ -26,6 +27,10 @@ const (
 )
 
 type Server struct {
+	gnet.BuiltinEventEngine
+
+	eng gnet.Engine
+
 	databaseNum int
 	bind        string
 	port        int
@@ -68,32 +73,48 @@ func NewServer(options ...ServerOption) *Server {
 	return s
 }
 
+func (s *Server) OnBoot(eng gnet.Engine) gnet.Action {
+	s.eng = eng
+	return gnet.None
+}
+
+func (s *Server) OnOpen(conn gnet.Conn) ([]byte, gnet.Action) {
+	id := s.counter.Add(1)
+	s.connections.Add(1)
+	cli := client.NewClient(id)
+	conn.SetContext(cli)
+
+	return nil, gnet.None
+}
+
+func (s *Server) OnTraffic(c gnet.Conn) gnet.Action {
+	cli := c.Context().(*client.Client)
+	cli.Conn = c
+
+	s.handleConnection(cli)
+
+	return gnet.None
+}
+
+func (s *Server) OnClose(c gnet.Conn, err error) gnet.Action {
+	cli := c.Context().(*client.Client)
+
+	s.connections.Add(-1)
+	cli.Conn.Close()
+	client.PutClient(cli)
+
+	return gnet.Close
+}
+
 func (s *Server) Listen() error {
-	address := fmt.Sprintf("%s:%d", s.bind, s.port)
-
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return err
-	}
-	s.listener = listener
-
+	address := fmt.Sprintf("tcp://%s:%d", s.bind, s.port)
 	log.Printf("AntDB listening on %s", address)
 
 	for i := 0; i < s.databaseNum; i++ {
 		go s.loop(i)
 	}
 
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			log.Printf("Failed to accept connection: %v", err)
-			return err
-		}
-		id := s.counter.Add(1)
-		s.connections.Add(1)
-		client := client.NewClient(conn, id)
-		go s.handleConnection(client)
-	}
+	return gnet.Run(s, address, gnet.WithMulticore(true))
 }
 
 func (s *Server) loop(dbIndex int) {
@@ -104,53 +125,45 @@ func (s *Server) loop(dbIndex int) {
 }
 
 func (s *Server) handleConnection(cli *client.Client) {
-	defer func() {
-		s.connections.Add(-1)
-		cli.Conn.Close()
-		client.PutClient(cli)
-	}()
+	err := cli.ReadCommand()
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) {
+		return
+	} else if err != nil {
+		log.Printf("Error reading command from client %d: %v", cli.ID, err)
+		return
+	}
 
-	for {
-		err := cli.ReadCommand()
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) {
-			break
-		} else if err != nil {
-			log.Printf("Error reading command from client %d: %v", cli.ID, err)
-			continue
+	if cli.LastCommand != nil {
+		switch cli.LastCommand.Command {
+		case "QUIT":
+			cli.ReplySimpleString("OK")
+			return
 		}
+	}
 
-		if cli.LastCommand != nil {
-			switch cli.LastCommand.Command {
-			case "QUIT":
-				cli.ReplySimpleString("OK")
-				return
-			}
-		}
+	if err := s.checkAuthentication(cli); err != nil {
+		cli.ReplyError(err.Error())
+		return
+	}
 
-		if err := s.checkAuthentication(cli); err != nil {
-			cli.ReplyError(err.Error())
-			continue
-		}
+	if cli.Flag&client.CLIENT_MULTI != 0 && cli.LastCommand.Command != "EXEC" {
+		cli.State = append(cli.State, cli.LastCommand)
+		cli.ReplySimpleString("QUEUED")
+		return
+	}
 
-		if cli.Flag&client.CLIENT_MULTI != 0 && cli.LastCommand.Command != "EXEC" {
-			cli.State = append(cli.State, cli.LastCommand)
-			cli.ReplySimpleString("QUEUED")
-			continue
-		}
+	isNoWait := false
+	cmd, ok := dbCommands[strings.ToUpper(cli.LastCommand.Command)]
+	if !ok {
+		cli.ReplyError(newUnknownCommandError(cli.LastCommand.Command).Error())
+		return
+	}
+	isNoWait = cmd.NoWait
 
-		isNoWait := false
-		cmd, ok := dbCommands[strings.ToUpper(cli.LastCommand.Command)]
-		if !ok {
-			cli.ReplyError(newUnknownCommandError(cli.LastCommand.Command).Error())
-			continue
-		}
-		isNoWait = cmd.NoWait
-
-		if isNoWait {
-			s.handleCommand(cli, cli.LastCommand)
-		} else {
-			s.requests[cli.DB] <- cli
-		}
+	if isNoWait {
+		s.handleCommand(cli, cli.LastCommand)
+	} else {
+		s.requests[cli.DB] <- cli
 	}
 }
 

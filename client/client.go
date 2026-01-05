@@ -1,9 +1,9 @@
 package client
 
 import (
-	"bufio"
-	"net"
 	"sync"
+
+	"github.com/panjf2000/gnet/v2"
 )
 
 const (
@@ -13,8 +13,7 @@ const (
 type Client struct {
 	ID            uint64
 	DB            int
-	Conn          net.Conn
-	Reader        *bufio.Reader
+	Conn          gnet.Conn
 	LastCommand   *Command
 	Authenticated bool
 	Flag          int
@@ -23,11 +22,9 @@ type Client struct {
 
 var clientPool sync.Pool
 
-func NewClient(conn net.Conn, id uint64) *Client {
+func NewClient(id uint64) *Client {
 	cli := clientPool.Get().(*Client)
 	cli.ID = id
-	cli.Conn = conn
-	cli.Reader = bufio.NewReader(conn)
 	cli.DB = 0
 	cli.Authenticated = false
 	cli.Flag = 0

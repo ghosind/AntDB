@@ -8,7 +8,7 @@ import (
 )
 
 func (cli *Client) ReadCommand() error {
-	b, err := cli.Reader.Peek(1)
+	b, err := cli.Conn.Peek(1)
 	if err != nil {
 		return err
 	}
@@ -76,19 +76,19 @@ func (cli *Client) readArray() ([]string, error) {
 			parts = append(parts, "")
 			continue
 		}
-		buf := make([]byte, size+2)
-		if _, err := io.ReadFull(cli.Reader, buf); err != nil {
-			return nil, err
-		}
+		buf, _ := cli.Conn.Peek(size + 2)
+		cli.Conn.Discard(size + 2)
 		parts = append(parts, string(buf[:size]))
 	}
 	return parts, nil
 }
 
 func (cli *Client) readline() (string, error) {
-	line, err := cli.Reader.ReadString('\n')
-	if err != nil {
-		return "", err
+	buf, _ := cli.Conn.Peek(-1)
+	if i := strings.Index(string(buf), "\n"); i >= 0 {
+		line := string(buf[:i+1])
+		cli.Conn.Discard(i + 1)
+		return strings.TrimRight(line, "\r\n"), nil
 	}
-	return strings.TrimRight(line, "\r\n"), nil
+	return "", io.EOF
 }
