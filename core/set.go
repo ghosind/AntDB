@@ -1,27 +1,31 @@
 package core
 
+import (
+	"github.com/ghosind/collection"
+	"github.com/ghosind/collection/set"
+)
+
 func (db *Database) SetAdd(key string, members ...string) (int, error) {
 	obj, err := db.lookupKey(key, TypeSet, true)
 	if err != nil {
 		return 0, err
 	}
 
-	var set map[string]struct{}
+	var s collection.Set[string]
 	if obj == nil {
-		set = make(map[string]struct{})
+		s = set.NewHashSet[string]()
 		obj = &Object{
 			Type:  TypeSet,
-			Value: set,
+			Value: s,
 		}
 		db.data[key] = obj
 	} else {
-		set = obj.Value.(map[string]struct{})
+		s = obj.Value.(collection.Set[string])
 	}
 
 	cnt := 0
 	for _, member := range members {
-		if _, exists := set[member]; !exists {
-			set[member] = struct{}{}
+		if ok := s.Add(member); ok {
 			cnt++
 		}
 	}
@@ -35,8 +39,8 @@ func (db *Database) SetCard(key string) (int, error) {
 		return 0, err
 	}
 
-	set := obj.Value.(map[string]struct{})
-	return len(set), nil
+	s := obj.Value.(collection.Set[string])
+	return s.Size(), nil
 }
 
 func (db *Database) SetIsMember(key string, member string) (bool, error) {
@@ -45,8 +49,8 @@ func (db *Database) SetIsMember(key string, member string) (bool, error) {
 		return false, err
 	}
 
-	set := obj.Value.(map[string]struct{})
-	_, exists := set[member]
+	s := obj.Value.(collection.Set[string])
+	exists := s.Contains(member)
 	return exists, nil
 }
 
@@ -56,13 +60,8 @@ func (db *Database) SetMembers(key string) ([]string, error) {
 		return nil, err
 	}
 
-	set := obj.Value.(map[string]struct{})
-	members := make([]string, 0, len(set))
-	for member := range set {
-		members = append(members, member)
-	}
-
-	return members, nil
+	s := obj.Value.(collection.Set[string])
+	return s.ToSlice(), nil
 }
 
 func (db *Database) SetMove(src, dest, member string) (bool, error) {
@@ -75,25 +74,25 @@ func (db *Database) SetMove(src, dest, member string) (bool, error) {
 		return false, err
 	}
 
-	srcSet := srcObj.Value.(map[string]struct{})
-	if _, ok := srcSet[member]; !ok {
+	srcSet := srcObj.Value.(collection.Set[string])
+	if !srcSet.Contains(member) {
 		return false, nil
 	}
 
-	delete(srcSet, member)
+	srcSet.Remove(member)
 
 	if destObj.IsExpired() {
-		destObj.Value = map[string]struct{}{}
+		destObj.Value = set.NewHashSet[string]()
 	} else if destObj == nil {
 		destObj = &Object{
-			Value: map[string]struct{}{},
+			Value: set.NewHashSet[string](),
 			Type:  TypeSet,
 		}
 		db.data[dest] = destObj
 	}
 
-	destSet := destObj.Value.(map[string]struct{})
-	destSet[member] = struct{}{}
+	destSet := destObj.Value.(collection.Set[string])
+	destSet.Add(member)
 
 	return true, nil
 }
@@ -104,15 +103,15 @@ func (db *Database) SetPop(key string) (string, bool, error) {
 		return "", false, err
 	}
 
-	set := obj.Value.(map[string]struct{})
+	s := obj.Value.(collection.Set[string])
 	defer func() {
-		if len(set) == 0 {
+		if s.Size() == 0 {
 			db.removeKey(key, obj)
 		}
 	}()
 
-	for member := range set {
-		delete(set, member)
+	for member := range s.Iter() {
+		s.Remove(member)
 		return member, true, nil
 	}
 
@@ -125,8 +124,8 @@ func (db *Database) SetRandMember(key string) (string, error) {
 		return "", err
 	}
 
-	set := obj.Value.(map[string]struct{})
-	for member := range set {
+	s := obj.Value.(collection.Set[string])
+	for member := range s.Iter() {
 		return member, nil
 	}
 
@@ -139,16 +138,15 @@ func (db *Database) SetRemove(key string, members ...string) (int, error) {
 		return 0, err
 	}
 
-	set := obj.Value.(map[string]struct{})
+	s := obj.Value.(collection.Set[string])
 	cnt := 0
 	for _, member := range members {
-		if _, exists := set[member]; exists {
-			delete(set, member)
+		if ok := s.Remove(member); ok {
 			cnt++
 		}
 	}
 
-	if len(set) == 0 {
+	if s.Size() == 0 {
 		db.removeKey(key, obj)
 	}
 
@@ -161,11 +159,8 @@ func (db *Database) SetDiff(key, dest string, keys []string) ([]string, error) {
 		return nil, err
 	}
 
-	set := obj.Value.(map[string]struct{})
-	diff := make(map[string]struct{}, len(set))
-	for k := range set {
-		diff[k] = struct{}{}
-	}
+	s := obj.Value.(collection.Set[string])
+	diff := s.Clone()
 
 	for _, k := range keys {
 		kObj, err := db.lookupKey(k, TypeSet, true)
@@ -175,9 +170,9 @@ func (db *Database) SetDiff(key, dest string, keys []string) ([]string, error) {
 			continue
 		}
 
-		ks := kObj.Value.(map[string]struct{})
-		for kk := range ks {
-			delete(diff, kk)
+		ks := kObj.Value.(collection.Set[string])
+		for kk := range ks.Iter() {
+			diff.Remove(kk)
 		}
 	}
 
@@ -197,11 +192,7 @@ func (db *Database) SetDiff(key, dest string, keys []string) ([]string, error) {
 		}
 	}
 
-	res := make([]string, 0, len(diff))
-	for k := range diff {
-		res = append(res, k)
-	}
-
+	res := diff.ToSlice()
 	return res, nil
 }
 
@@ -211,10 +202,10 @@ func (db *Database) SetInter(key, dest string, keys []string) ([]string, error) 
 		return nil, err
 	}
 
-	set := obj.Value.(map[string]struct{})
-	cnt := make(map[string]int, len(set))
-	inter := make(map[string]struct{}, 0)
-	for k := range set {
+	s := obj.Value.(collection.Set[string])
+	cnt := make(map[string]int, s.Size())
+	inter := set.NewHashSet[string]()
+	for k := range s.Iter() {
 		cnt[k]++
 	}
 
@@ -226,15 +217,15 @@ func (db *Database) SetInter(key, dest string, keys []string) ([]string, error) 
 			continue
 		}
 
-		ks := kObj.Value.(map[string]struct{})
-		for kk := range ks {
+		ks := kObj.Value.(collection.Set[string])
+		for kk := range ks.Iter() {
 			cnt[kk]++
 		}
 	}
 
 	for k := range cnt {
 		if cnt[k] == len(keys)+1 {
-			inter[k] = struct{}{}
+			inter.Add(k)
 		}
 	}
 
@@ -254,11 +245,7 @@ func (db *Database) SetInter(key, dest string, keys []string) ([]string, error) 
 		}
 	}
 
-	res := make([]string, 0, len(inter))
-	for k := range inter {
-		res = append(res, k)
-	}
-
+	res := inter.ToSlice()
 	return res, nil
 }
 
@@ -268,11 +255,8 @@ func (db *Database) SetUnion(key, dest string, keys []string) ([]string, error) 
 		return nil, err
 	}
 
-	set := obj.Value.(map[string]struct{})
-	union := make(map[string]struct{}, len(set))
-	for k := range set {
-		union[k] = struct{}{}
-	}
+	s := obj.Value.(collection.Set[string])
+	union := s.Clone()
 
 	for _, k := range keys {
 		kObj, err := db.lookupKey(k, TypeSet, true)
@@ -282,9 +266,9 @@ func (db *Database) SetUnion(key, dest string, keys []string) ([]string, error) 
 			continue
 		}
 
-		ks := kObj.Value.(map[string]struct{})
-		for kk := range ks {
-			union[kk] = struct{}{}
+		ks := kObj.Value.(collection.Set[string])
+		for kk := range ks.Iter() {
+			union.Add(kk)
 		}
 	}
 
@@ -304,10 +288,6 @@ func (db *Database) SetUnion(key, dest string, keys []string) ([]string, error) 
 		}
 	}
 
-	res := make([]string, 0, len(union))
-	for k := range union {
-		res = append(res, k)
-	}
-
+	res := union.ToSlice()
 	return res, nil
 }

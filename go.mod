@@ -2,7 +2,10 @@ module github.com/ghosind/antdb
 
 go 1.24.0
 
-require github.com/panjf2000/gnet/v2 v2.9.7
+require (
+	github.com/ghosind/collection v0.5.0
+	github.com/panjf2000/gnet/v2 v2.9.7
+)
 
 require (
 	github.com/panjf2000/ants/v2 v2.11.4 // indirect
