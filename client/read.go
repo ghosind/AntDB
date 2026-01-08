@@ -8,25 +8,32 @@ import (
 )
 
 func (cli *Client) ReadCommand() error {
-	b, err := cli.Conn.Peek(1)
+	buf, err := cli.Conn.Peek(-1)
 	if err != nil {
 		return err
 	}
+	cnt := 0
+	defer func() {
+		cli.Conn.Discard(cnt)
+	}()
 
 	var fields []string
-	switch b[0] {
+	switch buf[0] {
 	case '*':
-		fields, err = cli.readArray()
+		ret, n, err := cli.readArray(buf)
 		if err != nil {
 			return err
 		}
+		cnt += n
+		fields = ret
 	default:
-		line, err := cli.readline()
+		line, n, err := cli.readline(buf)
 		if err != nil {
 			return err
 		}
 
 		fields = strings.Fields(line)
+		cnt += n
 	}
 
 	if len(fields) == 0 {
@@ -43,52 +50,63 @@ func (cli *Client) ReadCommand() error {
 	return nil
 }
 
-func (cli *Client) readArray() ([]string, error) {
-	line, err := cli.readline()
+func (cli *Client) readArray(buf []byte) ([]string, int, error) {
+	cnt := 0
+	line, n, err := cli.readline(buf)
 	if err != nil {
-		return nil, err
+		return nil, cnt, err
 	}
 	if len(line) == 0 || line[0] != '*' {
-		return nil, errors.New("invalid array format")
+		return nil, cnt, errors.New("invalid array format")
 	}
+	cnt += n
 
-	n, err := strconv.Atoi(strings.TrimSpace(line[1:]))
+	num, err := strconv.Atoi(strings.TrimSpace(line[1:]))
 	if err != nil {
-		return nil, err
+		return nil, cnt, err
 	}
-	if n < 0 {
-		return nil, nil
+	if num < 0 {
+		return nil, cnt, nil
 	}
-	parts := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		header, err := cli.readline()
+	parts := make([]string, 0, num)
+	for i := 0; i < num; i++ {
+		header, n, err := cli.readline(buf[cnt:])
 		if err != nil {
-			return nil, err
+			return nil, cnt, err
 		}
 		if len(header) == 0 || header[0] != '$' {
-			return nil, errors.New("invalid bulk header")
+			return nil, cnt, errors.New("invalid bulk header")
 		}
+		cnt += n
 		size, err := strconv.Atoi(strings.TrimSpace(header[1:]))
 		if err != nil {
-			return nil, err
+			return nil, cnt, err
 		}
 		if size < 0 {
 			parts = append(parts, "")
 			continue
 		}
-		buf, _ := cli.Conn.Peek(size + 2)
-		cli.Conn.Discard(size + 2)
-		parts = append(parts, string(buf[:size]))
+		line := string(buf[cnt : cnt+size])
+		parts = append(parts, line)
+		cnt += size + 2 // including \r\n
 	}
-	return parts, nil
+	return parts, cnt, nil
 }
 
-func (cli *Client) readline() (string, error) {
-	buf, _ := cli.Conn.Peek(-1)
-	if i := strings.Index(string(buf), "\n"); i >= 0 {
+func (cli *Client) readline(buf []byte) (string, int, error) {
+	if i := indexOf(buf, '\n'); i >= 0 {
 		line := string(buf[:i+1])
-		cli.Conn.Discard(i + 1)
-		return strings.TrimRight(line, "\r\n"), nil
+		return strings.TrimRight(line, "\r\n"), i + 1, nil
 	}
-	return "", io.EOF
+
+	return "", 0, io.EOF
+}
+
+func indexOf(buf []byte, sep byte) int {
+	for i, b := range buf {
+		if b == sep {
+			return i
+		}
+	}
+	return -1
 }
