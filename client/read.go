@@ -1,7 +1,7 @@
 package client
 
 import (
-	"errors"
+	"bytes"
 	"io"
 	"strconv"
 	"strings"
@@ -12,6 +12,7 @@ func (cli *Client) ReadCommand() error {
 	if err != nil {
 		return err
 	}
+
 	cnt := 0
 	defer func() {
 		cli.Conn.Discard(cnt)
@@ -24,6 +25,7 @@ func (cli *Client) ReadCommand() error {
 		if err != nil {
 			return err
 		}
+
 		cnt += n
 		fields = ret
 	default:
@@ -37,7 +39,7 @@ func (cli *Client) ReadCommand() error {
 	}
 
 	if len(fields) == 0 {
-		return errors.New("empty command")
+		return ErrEmptyCommand
 	}
 
 	cmd := GetCommand()
@@ -57,17 +59,15 @@ func (cli *Client) readArray(buf []byte) ([]string, int, error) {
 		return nil, cnt, err
 	}
 	if len(line) == 0 || line[0] != '*' {
-		return nil, cnt, errors.New("invalid array format")
+		return nil, cnt, ErrInvalidArray
 	}
 	cnt += n
 
 	num, err := strconv.Atoi(strings.TrimSpace(line[1:]))
-	if err != nil {
+	if err != nil || num < 0 {
 		return nil, cnt, err
 	}
-	if num < 0 {
-		return nil, cnt, nil
-	}
+
 	parts := make([]string, 0, num)
 	for i := 0; i < num; i++ {
 		header, n, err := cli.readline(buf[cnt:])
@@ -75,8 +75,9 @@ func (cli *Client) readArray(buf []byte) ([]string, int, error) {
 			return nil, cnt, err
 		}
 		if len(header) == 0 || header[0] != '$' {
-			return nil, cnt, errors.New("invalid bulk header")
+			return nil, cnt, ErrInvalidBulkHeader
 		}
+
 		cnt += n
 		size, err := strconv.Atoi(strings.TrimSpace(header[1:]))
 		if err != nil {
@@ -86,6 +87,7 @@ func (cli *Client) readArray(buf []byte) ([]string, int, error) {
 			parts = append(parts, "")
 			continue
 		}
+
 		line := string(buf[cnt : cnt+size])
 		parts = append(parts, line)
 		cnt += size + 2 // including \r\n
@@ -95,8 +97,7 @@ func (cli *Client) readArray(buf []byte) ([]string, int, error) {
 
 func (cli *Client) readline(buf []byte) (string, int, error) {
 	if i := indexOf(buf, '\n'); i >= 0 {
-		line := string(buf[:i+1])
-		return strings.TrimRight(line, "\r\n"), i + 1, nil
+		return string(bytes.TrimRight(buf[:i+1], "\r\n")), i + 1, nil
 	}
 
 	return "", 0, io.EOF
