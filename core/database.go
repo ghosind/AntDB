@@ -100,3 +100,12 @@ func (db *Database) lookupKey(key string, expectedType ObjectType, isEvict bool)
 
 	return obj, nil
 }
+
+func (db *Database) ForEach(fn func(key string, obj *Object) error) error {
+	for k, v := range db.data {
+		if err := fn(k, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}

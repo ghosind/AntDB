@@ -45,6 +45,16 @@ var optionParams = map[string]ServerOptionParam{
 		Type:          ServerOptionParamTypeString,
 		OptionBuilder: server.WithRequirePass,
 	},
+	"dir": {
+		Name:          "dir",
+		Type:          ServerOptionParamTypeString,
+		OptionBuilder: server.WithDir,
+	},
+	"dbfilename": {
+		Name:          "dbfilename",
+		Type:          ServerOptionParamTypeString,
+		OptionBuilder: server.WithDBFilename,
+	},
 }
 
 func BuildOptionsByConfig(cfg *Config) []server.ServerOption {

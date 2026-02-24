@@ -24,3 +24,12 @@ func (s *Server) flushDBCommand(cli *client.Client, args ...string) error {
 	cli.ReplySimpleString("OK")
 	return nil
 }
+
+func (s *Server) saveCommand(cli *client.Client, _ ...string) error {
+	if err := s.saveRDB(); err != nil {
+		cli.ReplyError(err.Error())
+		return err
+	}
+	cli.ReplySimpleString("OK")
+	return nil
+}

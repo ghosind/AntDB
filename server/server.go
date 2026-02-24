@@ -24,6 +24,9 @@ const (
 
 	defaultServerHz                  = 10
 	defaultServerActiveExpireSamples = 20
+
+	defaultDir        = "./"
+	defaultDBFilename = "dump.rdb"
 )
 
 type Server struct {
@@ -43,6 +46,8 @@ type Server struct {
 	hz                  int
 	activeExpireSamples int
 	requirePass         string
+	dir                 string
+	dbFilename          string
 }
 
 func NewServer(options ...ServerOption) *Server {
@@ -67,7 +72,8 @@ func NewServer(options ...ServerOption) *Server {
 	s.hz = s.withIntOption(builder.hz, defaultServerHz)
 	s.activeExpireSamples = s.withIntOption(builder.activeExpireSamples, defaultServerActiveExpireSamples)
 	s.requirePass = builder.requirePass
-
+	s.dir = s.withStringOption(builder.dir, defaultDir)
+	s.dbFilename = s.withStringOption(builder.dbFilename, defaultDBFilename)
 	go s.serverCron()
 
 	return s
@@ -113,6 +119,15 @@ func (s *Server) Listen() error {
 	for i := 0; i < s.databaseNum; i++ {
 		go s.loop(i)
 	}
+
+	defer func() {
+		for i := 0; i < s.databaseNum; i++ {
+			if s.requests[i] != nil {
+				close(s.requests[i])
+			}
+		}
+		s.saveRDB()
+	}()
 
 	return gnet.Run(s, address, gnet.WithMulticore(true))
 }

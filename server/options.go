@@ -8,6 +8,8 @@ type serverBuilder struct {
 	hz                  int
 	activeExpireSamples int
 	requirePass         string
+	dir                 string
+	dbFilename          string
 }
 
 type ServerOption func(*serverBuilder)
@@ -45,5 +47,17 @@ func WithActiveExpireSamples(samples int) ServerOption {
 func WithRequirePass(password string) ServerOption {
 	return func(sb *serverBuilder) {
 		sb.requirePass = password
+	}
+}
+
+func WithDir(dir string) ServerOption {
+	return func(sb *serverBuilder) {
+		sb.dir = dir
+	}
+}
+
+func WithDBFilename(filename string) ServerOption {
+	return func(sb *serverBuilder) {
+		sb.dbFilename = filename
 	}
 }

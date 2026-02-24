@@ -55,6 +55,7 @@ func init() {
 		"DBSIZE":   {Handler: (*Server).dbSizeCommand, Arity: 0, Flags: CommandFlagRead},
 		"FLUSHALL": {Handler: (*Server).flushAllCommand, Arity: 0, Flags: CommandFlagWrite},
 		"FLUSHDB":  {Handler: (*Server).flushDBCommand, Arity: 0, Flags: CommandFlagWrite},
+		"SAVE":     {Handler: (*Server).saveCommand, Arity: 0, Flags: CommandFlagRead},
 		// Set
 		"SADD":        {Handler: (*Server).saddCommand, Arity: -2, Flags: CommandFlagWrite},
 		"SCARD":       {Handler: (*Server).scardCommand, Arity: 1, Flags: CommandFlagRead},

@@ -3,8 +3,8 @@ package core
 type ObjectType int
 
 const (
-	TypeNone ObjectType = iota
-	TypeString
+	TypeNone   ObjectType = -1
+	TypeString ObjectType = iota
 	TypeList
 	TypeSet
 )
