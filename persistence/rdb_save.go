@@ -20,6 +20,10 @@ const (
 	typeExpireTime byte = 0xFD
 	typeSelectDB   byte = 0xFE
 	typeEOF        byte = 0xFF
+
+	len6Bit  byte = 0
+	len14Bit byte = 1
+	len32Bit byte = 2
 )
 
 func RDBSave(dbs []*core.Database, path string) error {
@@ -42,7 +46,7 @@ func RDBSave(dbs []*core.Database, path string) error {
 		if _, err := f.Write([]byte{typeSelectDB}); err != nil {
 			return err
 		}
-		if err := binary.Write(f, binary.BigEndian, uint8(i)); err != nil {
+		if err := rdbWriteLen(f, uint32(i)); err != nil {
 			return err
 		}
 
@@ -76,7 +80,7 @@ func rdbSaveObject(w io.Writer, obj *core.Object) error {
 		}
 	case core.TypeList:
 		ll := obj.Value.(*core.LinkedList)
-		if err := binary.Write(w, binary.BigEndian, uint8(ll.Size)); err != nil {
+		if err := rdbWriteLen(w, uint32(ll.Size)); err != nil {
 			return err
 		}
 		for node := ll.Head; node != nil; node = node.Next {
@@ -87,7 +91,7 @@ func rdbSaveObject(w io.Writer, obj *core.Object) error {
 	case core.TypeSet:
 		s := obj.Value.(collection.Set[string])
 		members := s.ToSlice()
-		if err := binary.Write(w, binary.BigEndian, uint8(len(members))); err != nil {
+		if err := rdbWriteLen(w, uint32(len(members))); err != nil {
 			return err
 		}
 		for _, m := range members {
@@ -112,7 +116,7 @@ func rdbSaveEntry(w io.Writer, key string, obj *core.Object) error {
 		if _, err := w.Write([]byte{typeExpireTime}); err != nil {
 			return err
 		}
-		if err := binary.Write(w, binary.BigEndian, uint64(obj.Expires)); err != nil {
+		if err := rdbWriteTime(w, uint64(obj.Expires/1000)); err != nil {
 			return err
 		}
 	}
@@ -140,12 +144,43 @@ func rdbSaveEntry(w io.Writer, key string, obj *core.Object) error {
 	return rdbSaveObject(w, obj)
 }
 
+func rdbWriteTime(w io.Writer, t uint64) error {
+	if err := binary.Write(w, binary.LittleEndian, uint32(t)); err != nil {
+		return err
+	}
+	return nil
+}
+
 func rdbWriteString(w io.Writer, s string) error {
-	if err := binary.Write(w, binary.BigEndian, uint8(len(s))); err != nil {
+	if err := rdbWriteLen(w, uint32(len(s))); err != nil {
 		return err
 	}
 	if _, err := w.Write([]byte(s)); err != nil {
 		return err
 	}
 	return nil
+}
+
+func rdbWriteLen(w io.Writer, n uint32) error {
+	if n < (1 << 14) {
+		buf := make([]byte, 0)
+		if n < (1 << 6) {
+			buf = append(buf, uint8(n)&0xFF|(len6Bit<<6))
+		} else {
+			buf = append(buf, uint8((n>>8)&0xFF)|(len14Bit<<6))
+			buf = append(buf, uint8(n&0xFF))
+		}
+		if _, err := w.Write(buf); err != nil {
+			return err
+		}
+		return nil
+	} else {
+		if _, err := w.Write([]byte{len32Bit << 6}); err != nil {
+			return err
+		}
+		if err := binary.Write(w, binary.BigEndian, n); err != nil {
+			return err
+		}
+		return nil
+	}
 }
