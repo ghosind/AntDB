@@ -33,3 +33,4 @@ go.work.sum
 
 # Misc
 .DS_Store
+*.rdb

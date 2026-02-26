@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -32,7 +34,8 @@ const (
 type Server struct {
 	gnet.BuiltinEventEngine
 
-	eng gnet.Engine
+	eng  gnet.Engine
+	term chan struct{}
 
 	databaseNum int
 	bind        string
@@ -61,6 +64,7 @@ func NewServer(options ...ServerOption) *Server {
 	s.databaseNum = s.withIntOption(builder.databases, defaultServerDatabases)
 	s.bind = s.withStringOption(builder.bind, defaultServerBind)
 	s.port = s.withIntOption(builder.port, defaultServerPort)
+	s.term = make(chan struct{}, 1)
 
 	s.databases = make([]*core.Database, s.databaseNum)
 	s.requests = make([]chan *client.Client, s.databaseNum)
@@ -103,38 +107,93 @@ func (s *Server) OnTraffic(c gnet.Conn) gnet.Action {
 }
 
 func (s *Server) OnClose(c gnet.Conn, err error) gnet.Action {
-	cli := c.Context().(*client.Client)
+	ctx := c.Context()
+	if ctx == nil {
+		s.connections.Add(-1)
+		return gnet.Close
+	}
+
+	cli := ctx.(*client.Client)
 
 	s.connections.Add(-1)
-	cli.Conn.Close()
+	if cli.Conn != nil {
+		cli.Conn.Close()
+	}
 	client.PutClient(cli)
 
 	return gnet.Close
 }
 
-func (s *Server) Listen() error {
-	address := fmt.Sprintf("tcp://%s:%d", s.bind, s.port)
+func (s *Server) Listen() (err error) {
+	address := "tcp://" + s.bind + ":" + strconv.Itoa(s.port)
 	log.Printf("AntDB listening on %s", address)
 
+	errCh := make(chan error, 1)
+
+	s.init()
+
+	go func() {
+		errCh <- gnet.Run(s, address, gnet.WithMulticore(true))
+		select {
+		case s.term <- struct{}{}:
+		default:
+		}
+	}()
+
+	<-s.term
+	s.close()
+
+	return <-errCh
+}
+
+func (s *Server) init() {
 	for i := 0; i < s.databaseNum; i++ {
 		go s.loop(i)
 	}
 
-	defer func() {
-		for i := 0; i < s.databaseNum; i++ {
-			if s.requests[i] != nil {
-				close(s.requests[i])
+	go func() {
+		closeSignal := make(chan os.Signal, 1)
+		defer close(closeSignal)
+
+		signal.Notify(closeSignal, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+		for sig := range closeSignal {
+			switch sig {
+			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM:
+				select {
+				case s.term <- struct{}{}:
+				default:
+				}
+				signal.Stop(closeSignal)
+				return
 			}
 		}
-		s.saveRDB()
-	}()
 
-	return gnet.Run(s, address, gnet.WithMulticore(true))
+	}()
+}
+
+func (s *Server) close() {
+	if err := s.eng.Validate(); err == nil {
+		stopErr := s.eng.Stop(context.Background())
+		if stopErr != nil {
+			log.Printf("Error stopping server: %v", stopErr)
+		}
+	}
+
+	for i := 0; i < s.databaseNum; i++ {
+		if s.requests[i] != nil {
+			close(s.requests[i])
+		}
+	}
+
+	s.saveRDB()
 }
 
 func (s *Server) loop(dbIndex int) {
-	for {
-		cli := <-s.requests[dbIndex]
+	for cli := range s.requests[dbIndex] {
+		if cli == nil {
+			continue
+		}
+
 		s.handleCommand(cli, cli.LastCommand)
 	}
 }
@@ -152,6 +211,13 @@ func (s *Server) handleConnection(cli *client.Client) {
 		switch cli.LastCommand.Command {
 		case "QUIT":
 			cli.ReplySimpleString("OK")
+			return
+		case "SHUTDOWN":
+			cli.ReplySimpleString("OK")
+			select {
+			case s.term <- struct{}{}:
+			default:
+			}
 			return
 		}
 	}
@@ -225,6 +291,9 @@ func (s *Server) handleCommand(cli *client.Client, nextCmd *client.Command) {
 }
 
 func (s *Server) serverCron() {
+	if s.hz <= 0 {
+		s.hz = defaultServerHz
+	}
 	duration := 1000 / s.hz
 	ticker := time.NewTicker(time.Duration(duration) * time.Millisecond)
 	defer ticker.Stop()
