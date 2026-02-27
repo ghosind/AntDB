@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	header = "REDIS0001"
+	rdbHeader = "REDIS0001"
 
 	typeString byte = 0x00
 	typeList   byte = 0x01
@@ -34,7 +34,7 @@ func RDBSave(dbs []*core.Database, path string) error {
 	}
 	defer f.Close()
 
-	if _, err := f.Write([]byte(header)); err != nil {
+	if _, err := f.Write([]byte(rdbHeader)); err != nil {
 		return err
 	}
 

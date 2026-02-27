@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/ghosind/antdb/client"
 	"github.com/ghosind/antdb/core"
+	"github.com/ghosind/antdb/persistence"
 	"github.com/panjf2000/gnet/v2"
 )
 
@@ -147,6 +149,13 @@ func (s *Server) Listen() (err error) {
 }
 
 func (s *Server) init() {
+	filePath := path.Join(s.dir, s.dbFilename)
+	err := persistence.RDBLoad(s.databases, filePath)
+	if err != nil {
+		log.Printf("Error loading RDB file: %v", err)
+		os.Exit(1)
+	}
+
 	for i := 0; i < s.databaseNum; i++ {
 		go s.loop(i)
 	}
