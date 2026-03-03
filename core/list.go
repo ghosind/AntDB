@@ -1,5 +1,35 @@
 package core
 
+func (db *Database) RestoreList(key string, values []string, ttl int64) error {
+	obj, err := db.lookupKey(key, TypeList, true)
+	if err != nil {
+		return err
+	}
+
+	var list *LinkedList
+	if obj == nil {
+		list = &LinkedList{}
+		obj = &Object{
+			Type:  TypeList,
+			Value: list,
+		}
+		db.data[key] = obj
+	} else {
+		list = obj.Value.(*LinkedList)
+	}
+
+	for _, value := range values {
+		list.RPush(value)
+	}
+
+	if ttl > 0 {
+		obj.Expires = ttl
+		db.expires[key] = ttl
+	}
+
+	return nil
+}
+
 func (db *Database) ListIndex(key string, index int) (string, bool, error) {
 	obj, err := db.lookupKey(key, TypeList, true)
 	if err != nil || obj == nil {

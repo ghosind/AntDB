@@ -25,6 +25,9 @@ func RDBLoad(dbs []*core.Database, path string) error {
 
 func rdbLoadFromReader(rr *RDBReader, dbs []*core.Database) error {
 	curDB := 0
+	expires := int64(0)
+
+nextLoop:
 	for {
 		b, err := rr.ReadByte()
 		if err != nil {
@@ -40,60 +43,8 @@ func rdbLoadFromReader(rr *RDBReader, dbs []*core.Database) error {
 			if err != nil {
 				return err
 			}
-			objType, err := rr.ReadByte()
-			if err != nil {
-				return err
-			}
-			key, err := rr.ReadString()
-			if err != nil {
-				return err
-			}
-			expires := int64(ts) * 1000
-			switch objType {
-			case typeString:
-				val, err := rr.ReadString()
-				if err != nil {
-					return err
-				}
-				if _, _, err := dbs[curDB].Set(key, val, 0, expires); err != nil {
-					return err
-				}
-			case typeList:
-				l, err := rr.ReadLen()
-				if err != nil {
-					return err
-				}
-				for i := uint32(0); i < l; i++ {
-					v, err := rr.ReadString()
-					if err != nil {
-						return err
-					}
-					if _, err := dbs[curDB].ListPush(key, v, false); err != nil {
-						return err
-					}
-				}
-				dbs[curDB].Expire(key, expires)
-			case typeSet:
-				l, err := rr.ReadLen()
-				if err != nil {
-					return err
-				}
-				members := make([]string, 0, l)
-				for i := uint32(0); i < l; i++ {
-					v, err := rr.ReadString()
-					if err != nil {
-						return err
-					}
-					members = append(members, v)
-				}
-				if _, err := dbs[curDB].SetAdd(key, members...); err != nil {
-					return err
-				}
-				dbs[curDB].Expire(key, expires)
-			default:
-				return ErrUnsupportedObjectType
-			}
-
+			expires = int64(ts) * 1000
+			continue nextLoop
 		case typeSelectDB:
 			n, err := rr.ReadLen()
 			if err != nil {
@@ -104,10 +55,6 @@ func rdbLoadFromReader(rr *RDBReader, dbs []*core.Database) error {
 			} else {
 				curDB = 0
 			}
-
-		case typeEOF:
-			return nil
-
 		case typeString:
 			key, err := rr.ReadString()
 			if err != nil {
@@ -117,10 +64,9 @@ func rdbLoadFromReader(rr *RDBReader, dbs []*core.Database) error {
 			if err != nil {
 				return err
 			}
-			if _, _, err := dbs[curDB].Set(key, val, 0, 0); err != nil {
+			if err := dbs[curDB].RestoreString(key, val, expires); err != nil {
 				return err
 			}
-
 		case typeList:
 			key, err := rr.ReadString()
 			if err != nil {
@@ -130,16 +76,17 @@ func rdbLoadFromReader(rr *RDBReader, dbs []*core.Database) error {
 			if err != nil {
 				return err
 			}
+			val := make([]string, 0, l)
 			for i := uint32(0); i < l; i++ {
 				v, err := rr.ReadString()
 				if err != nil {
 					return err
 				}
-				if _, err := dbs[curDB].ListPush(key, v, false); err != nil {
-					return err
-				}
+				val = append(val, v)
 			}
-
+			if err := dbs[curDB].RestoreList(key, val, expires); err != nil {
+				return err
+			}
 		case typeSet:
 			key, err := rr.ReadString()
 			if err != nil {
@@ -157,12 +104,15 @@ func rdbLoadFromReader(rr *RDBReader, dbs []*core.Database) error {
 				}
 				members = append(members, v)
 			}
-			if _, err := dbs[curDB].SetAdd(key, members...); err != nil {
+			if err := dbs[curDB].RestoreSet(key, members, expires); err != nil {
 				return err
 			}
-
+		case typeEOF:
+			return nil
 		default:
 			return ErrInvalidRDBFormat
 		}
+
+		expires = 0
 	}
 }

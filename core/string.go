@@ -7,6 +7,27 @@ const (
 	SetFlagXX
 )
 
+func (db *Database) RestoreString(key string, value string, ttl int64) error {
+	obj, err := db.lookupKey(key, TypeString, true)
+	if err != nil {
+		return err
+	}
+
+	if obj == nil {
+		obj = db.newObject()
+		obj.Type = TypeString
+		db.data[key] = obj
+	}
+
+	obj.SetStringValue(value)
+	if ttl > 0 {
+		obj.Expires = ttl
+		db.expires[key] = ttl
+	}
+
+	return nil
+}
+
 func (db *Database) Get(key string) (string, bool, error) {
 	obj, err := db.lookupKey(key, TypeString, true)
 	if err != nil || obj == nil {

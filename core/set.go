@@ -5,6 +5,36 @@ import (
 	"github.com/ghosind/collection/set"
 )
 
+func (db *Database) RestoreSet(key string, members []string, ttl int64) error {
+	obj, err := db.lookupKey(key, TypeSet, true)
+	if err != nil {
+		return err
+	}
+
+	var s collection.Set[string]
+	if obj == nil {
+		s = set.NewHashSet[string]()
+		obj = &Object{
+			Type:  TypeSet,
+			Value: s,
+		}
+		db.data[key] = obj
+	} else {
+		s = obj.Value.(collection.Set[string])
+	}
+
+	for _, member := range members {
+		s.Add(member)
+	}
+
+	if ttl > 0 {
+		obj.Expires = ttl
+		db.expires[key] = ttl
+	}
+
+	return nil
+}
+
 func (db *Database) SetAdd(key string, members ...string) (int, error) {
 	obj, err := db.lookupKey(key, TypeSet, true)
 	if err != nil {
