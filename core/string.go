@@ -7,6 +7,16 @@ const (
 	SetFlagXX
 )
 
+func (db *Database) newStringObject(key string) *Object {
+	obj := db.newObject()
+	obj.Type = TypeString
+	obj.Value = ""
+
+	db.data[key] = obj
+
+	return obj
+}
+
 func (db *Database) RestoreString(key string, value string, ttl int64) error {
 	obj, err := db.lookupKey(key, TypeString, true)
 	if err != nil {
@@ -14,9 +24,7 @@ func (db *Database) RestoreString(key string, value string, ttl int64) error {
 	}
 
 	if obj == nil {
-		obj = db.newObject()
-		obj.Type = TypeString
-		db.data[key] = obj
+		obj = db.newStringObject(key)
 	}
 
 	obj.SetStringValue(value)
@@ -48,10 +56,8 @@ func (db *Database) Incr(key string, delta int64) (int64, error) {
 	val := delta
 
 	if obj == nil {
-		obj = db.newObject()
-		obj.Type = TypeString
+		obj = db.newStringObject(key)
 		obj.Value = int64(val)
-		db.data[key] = obj
 	} else {
 		v, err := obj.IntValue()
 		if err != nil {
@@ -88,8 +94,7 @@ func (db *Database) MSet(isNX bool, pairs ...string) (bool, error) {
 
 		obj := objs[i/2]
 		if obj == nil {
-			obj = db.newObject()
-			db.data[key] = obj
+			obj = db.newStringObject(key)
 		} else {
 			delete(db.expires, key)
 		}
@@ -119,8 +124,7 @@ func (db *Database) Set(key string, value string, flag SetFlag, expires int64) (
 	oldVal := ""
 
 	if obj == nil {
-		obj = db.newObject()
-		db.data[key] = obj
+		obj = db.newStringObject(key)
 	} else {
 		oldVal = obj.StringValue()
 	}

@@ -4,9 +4,9 @@ type ObjectType int
 
 const (
 	TypeNone   ObjectType = -1
-	TypeString ObjectType = iota
-	TypeList
-	TypeSet
+	TypeString ObjectType = 0
+	TypeList   ObjectType = 1
+	TypeSet    ObjectType = 2
 )
 
 func (t ObjectType) String() string {

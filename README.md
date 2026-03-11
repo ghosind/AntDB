@@ -7,6 +7,7 @@ AntDB is a lightweight Redis-like in-memory key-value database written in Go.
 - RESP (Redis Serialization Protocol) support
 - Redis 1.X compatible commands (WIP)
 - TTL handling with background eviction
+- RDB persistence (snapshotting)
 - Transaction support (`MULTI`/`EXEC`)
 
 ## Quickstart

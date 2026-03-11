@@ -5,23 +5,26 @@ import (
 	"github.com/ghosind/collection/set"
 )
 
+func (db *Database) newSetObject(key string) *Object {
+	obj := db.newObject()
+	obj.Type = TypeSet
+	obj.Value = set.NewHashSet[string]()
+
+	db.data[key] = obj
+
+	return obj
+}
+
 func (db *Database) RestoreSet(key string, members []string, ttl int64) error {
 	obj, err := db.lookupKey(key, TypeSet, true)
 	if err != nil {
 		return err
 	}
 
-	var s collection.Set[string]
 	if obj == nil {
-		s = set.NewHashSet[string]()
-		obj = &Object{
-			Type:  TypeSet,
-			Value: s,
-		}
-		db.data[key] = obj
-	} else {
-		s = obj.Value.(collection.Set[string])
+		obj = db.newSetObject(key)
 	}
+	s := obj.Value.(collection.Set[string])
 
 	for _, member := range members {
 		s.Add(member)
@@ -41,17 +44,10 @@ func (db *Database) SetAdd(key string, members ...string) (int, error) {
 		return 0, err
 	}
 
-	var s collection.Set[string]
 	if obj == nil {
-		s = set.NewHashSet[string]()
-		obj = &Object{
-			Type:  TypeSet,
-			Value: s,
-		}
-		db.data[key] = obj
-	} else {
-		s = obj.Value.(collection.Set[string])
+		obj = db.newSetObject(key)
 	}
+	s := obj.Value.(collection.Set[string])
 
 	cnt := 0
 	for _, member := range members {
@@ -114,11 +110,7 @@ func (db *Database) SetMove(src, dest, member string) (bool, error) {
 	if destObj.IsExpired() {
 		destObj.Value = set.NewHashSet[string]()
 	} else if destObj == nil {
-		destObj = &Object{
-			Value: set.NewHashSet[string](),
-			Type:  TypeSet,
-		}
-		db.data[dest] = destObj
+		destObj = db.newSetObject(dest)
 	}
 
 	destSet := destObj.Value.(collection.Set[string])
@@ -212,14 +204,9 @@ func (db *Database) SetDiff(key, dest string, keys []string) ([]string, error) {
 			return nil, err
 		}
 		if destObj == nil {
-			destObj = &Object{
-				Type:  TypeSet,
-				Value: diff,
-			}
-			db.data[dest] = destObj
-		} else {
-			destObj.Value = diff
+			destObj = db.newSetObject(dest)
 		}
+		destObj.Value = diff
 	}
 
 	res := diff.ToSlice()
@@ -265,14 +252,9 @@ func (db *Database) SetInter(key, dest string, keys []string) ([]string, error) 
 			return nil, err
 		}
 		if destObj == nil {
-			destObj = &Object{
-				Type:  TypeSet,
-				Value: inter,
-			}
-			db.data[dest] = destObj
-		} else {
-			destObj.Value = inter
+			destObj = db.newSetObject(dest)
 		}
+		destObj.Value = inter
 	}
 
 	res := inter.ToSlice()
@@ -308,14 +290,9 @@ func (db *Database) SetUnion(key, dest string, keys []string) ([]string, error) 
 			return nil, err
 		}
 		if destObj == nil {
-			destObj = &Object{
-				Type:  TypeSet,
-				Value: union,
-			}
-			db.data[dest] = destObj
-		} else {
-			destObj.Value = union
+			destObj = db.newSetObject(dest)
 		}
+		destObj.Value = union
 	}
 
 	res := union.ToSlice()

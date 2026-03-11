@@ -1,22 +1,25 @@
 package core
 
+func (db *Database) newListObject(key string) *Object {
+	obj := db.newObject()
+	obj.Type = TypeList
+	obj.Value = new(LinkedList)
+
+	db.data[key] = obj
+
+	return obj
+}
+
 func (db *Database) RestoreList(key string, values []string, ttl int64) error {
 	obj, err := db.lookupKey(key, TypeList, true)
 	if err != nil {
 		return err
 	}
 
-	var list *LinkedList
 	if obj == nil {
-		list = &LinkedList{}
-		obj = &Object{
-			Type:  TypeList,
-			Value: list,
-		}
-		db.data[key] = obj
-	} else {
-		list = obj.Value.(*LinkedList)
+		obj = db.newListObject(key)
 	}
+	list := obj.Value.(*LinkedList)
 
 	for _, value := range values {
 		list.RPush(value)
@@ -85,16 +88,11 @@ func (db *Database) ListPush(key string, value string, left bool) (int, error) {
 		return 0, err
 	}
 
-	var list *LinkedList
 	if obj == nil {
-		list = &LinkedList{}
-		obj = &Object{
-			Type:  TypeList,
-			Value: list,
-		}
-		db.data[key] = obj
+		obj = db.newListObject(key)
 	}
-	list = obj.Value.(*LinkedList)
+	list := obj.Value.(*LinkedList)
+
 	if left {
 		list.LPush(value)
 	} else {
@@ -238,11 +236,7 @@ func (db *Database) ListRPopLPush(sourceKey, destKey string) (string, bool, erro
 	}
 
 	if destObj == nil {
-		destObj = &Object{
-			Type:  TypeList,
-			Value: &LinkedList{},
-		}
-		db.data[destKey] = destObj
+		destObj = db.newListObject(destKey)
 	}
 
 	destList := destObj.Value.(*LinkedList)
